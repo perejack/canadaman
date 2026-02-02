@@ -1,9 +1,23 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = 'https://dbpbvoqfexofyxcexmmp.supabase.co'
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRicGJ2b3FmZXhvZnl4Y2V4bW1wIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkzNDc0NTMsImV4cCI6MjA3NDkyMzQ1M30.hGn7ux2xnRxseYCjiZfCLchgOEwIlIAUkdS6h7byZqc'
+const supabaseUrl = process.env.APP_SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+const supabaseKey =
+  process.env.APP_SUPABASE_SERVICE_ROLE_KEY ||
+  process.env.VITE_SUPABASE_ANON_KEY ||
+  process.env.APP_SUPABASE_ANON_KEY;
+
+if (!supabaseUrl || !supabaseKey) {
+  throw new Error('Missing Supabase config. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY for the Applications DB (or APP_SUPABASE_URL and APP_SUPABASE_ANON_KEY).');
+}
 
 const supabase = createClient(supabaseUrl, supabaseKey);
+
+function getApplicationsSupabaseClient() {
+  if (process.env.APP_SUPABASE_URL && process.env.APP_SUPABASE_SERVICE_ROLE_KEY) {
+    return createClient(process.env.APP_SUPABASE_URL, process.env.APP_SUPABASE_SERVICE_ROLE_KEY);
+  }
+  return supabase;
+}
 
 // SwiftPay M-Pesa Verification Proxy
 const MPESA_PROXY_URL = process.env.MPESA_PROXY_URL || 'https://swiftpay-backend-uvv9.onrender.com/api/mpesa-verification-proxy';
@@ -63,11 +77,13 @@ export default async (req, res) => {
     }
     
     console.log('Checking status for reference:', reference);
+
+    const appSupabase = getApplicationsSupabaseClient();
     
-    const { data: transaction, error: dbError } = await supabase
-      .from('transactions')
+    const { data: attempt, error: dbError } = await appSupabase
+      .from('payment_attempts')
       .select('*')
-      .or(`reference.eq.${reference},transaction_request_id.eq.${reference}`)
+      .eq('checkout_request_id', reference)
       .maybeSingle();
     
     if (dbError) {
@@ -79,43 +95,50 @@ export default async (req, res) => {
       });
     }
     
-    if (transaction) {
-      console.log(`Payment status found for ${reference}:`, transaction);
+    if (attempt) {
+      console.log(`Payment status found for ${reference}:`, attempt);
       
       let paymentStatus = 'PENDING';
-      if (transaction.status === 'success') {
+      if (attempt.status === 'success') {
         paymentStatus = 'SUCCESS';
-      } else if (transaction.status === 'failed' || transaction.status === 'cancelled') {
+      } else if (attempt.status === 'failed' || attempt.status === 'cancelled') {
         paymentStatus = 'FAILED';
       }
       
       // If status is still pending, query M-Pesa via SwiftPay proxy
       if (paymentStatus === 'PENDING') {
-        console.log(`Status is pending, querying M-Pesa via proxy for ${transaction.transaction_request_id}`);
+        console.log(`Status is pending, querying M-Pesa via proxy for ${attempt.checkout_request_id}`);
         try {
-          const proxyResponse = await queryMpesaPaymentStatus(transaction.transaction_request_id);
+          const proxyResponse = await queryMpesaPaymentStatus(attempt.checkout_request_id);
           
-          if (proxyResponse && proxyResponse.success && proxyResponse.payment.status === 'success') {
-            console.log(`Proxy confirmed payment success for ${transaction.transaction_request_id}, updating database`);
+          const proxyStatus = proxyResponse?.payment?.status;
+
+          if (proxyResponse && proxyResponse.success && proxyStatus === 'success') {
+            console.log(`Proxy confirmed payment success for ${attempt.checkout_request_id}, updating database`);
             
-            // Update transaction to success
-            const { data: updatedTransaction, error: updateError } = await supabase
-              .from('transactions')
-              .update({
-                status: 'success'
-              })
-              .eq('id', transaction.id)
-              .select();
+            const { error: updateError } = await appSupabase
+              .from('payment_attempts')
+              .update({ status: 'success' })
+              .eq('checkout_request_id', attempt.checkout_request_id);
             
-            if (!updateError && updatedTransaction && updatedTransaction.length > 0) {
-              paymentStatus = 'SUCCESS';
-              console.log(`Transaction ${transaction.transaction_request_id} updated to success:`, updatedTransaction[0]);
-            } else if (updateError) {
+            if (updateError) {
               console.error('Error updating transaction:', updateError);
+            } else {
+              paymentStatus = 'SUCCESS';
             }
-          } else if (proxyResponse && proxyResponse.payment.status === 'failed') {
+          } else if (proxyResponse && proxyStatus === 'failed') {
+            await appSupabase
+              .from('payment_attempts')
+              .update({ status: 'failed' })
+              .eq('checkout_request_id', attempt.checkout_request_id);
             paymentStatus = 'FAILED';
-            console.log(`Proxy confirmed payment failed for ${transaction.transaction_request_id}`);
+            console.log(`Proxy confirmed payment failed for ${attempt.checkout_request_id}`);
+          } else if (proxyResponse && proxyStatus === 'cancelled') {
+            await appSupabase
+              .from('payment_attempts')
+              .update({ status: 'cancelled' })
+              .eq('checkout_request_id', attempt.checkout_request_id);
+            paymentStatus = 'FAILED';
           }
         } catch (proxyError) {
           console.error('Error querying M-Pesa via proxy:', proxyError);
@@ -127,12 +150,9 @@ export default async (req, res) => {
         success: true,
         payment: {
           status: paymentStatus,
-          amount: transaction.amount,
-          phoneNumber: transaction.phone,
-          mpesaReceiptNumber: transaction.receipt_number,
-          resultDesc: transaction.result_description,
-          resultCode: transaction.result_code,
-          timestamp: transaction.updated_at
+          amount: attempt.amount,
+          phoneNumber: attempt.phone_number,
+          timestamp: attempt.updated_at
         }
       });
     } else {

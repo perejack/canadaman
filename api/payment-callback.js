@@ -1,9 +1,23 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = 'https://dbpbvoqfexofyxcexmmp.supabase.co'
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRicGJ2b3FmZXhvZnl4Y2V4bW1wIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkzNDc0NTMsImV4cCI6MjA3NDkyMzQ1M30.hGn7ux2xnRxseYCjiZfCLchgOEwIlIAUkdS6h7byZqc'
+const supabaseUrl = process.env.APP_SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+const supabaseKey =
+  process.env.APP_SUPABASE_SERVICE_ROLE_KEY ||
+  process.env.VITE_SUPABASE_ANON_KEY ||
+  process.env.APP_SUPABASE_ANON_KEY;
+
+if (!supabaseUrl || !supabaseKey) {
+  throw new Error('Missing Supabase config. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY for the Applications DB (or APP_SUPABASE_URL and APP_SUPABASE_ANON_KEY).');
+}
 
 const supabase = createClient(supabaseUrl, supabaseKey);
+
+function getApplicationsSupabaseClient() {
+  if (process.env.APP_SUPABASE_URL && process.env.APP_SUPABASE_SERVICE_ROLE_KEY) {
+    return createClient(process.env.APP_SUPABASE_URL, process.env.APP_SUPABASE_SERVICE_ROLE_KEY);
+  }
+  return supabase;
+}
 
 export default async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -25,8 +39,8 @@ export default async (req, res) => {
     console.log('Timestamp:', new Date().toISOString());
     console.log('Payload:', JSON.stringify(payload, null, 2));
 
-    if (!payload.TransactionID) {
-      console.error('Invalid webhook: Missing TransactionID');
+    if (!payload.TransactionID && !payload.CheckoutRequestID) {
+      console.error('Invalid webhook: Missing TransactionID and CheckoutRequestID');
       return res.status(400).json({
         status: 'error',
         message: 'Invalid webhook data'
@@ -78,54 +92,64 @@ export default async (req, res) => {
       }
     }
 
-    let transaction = null;
+    const appSupabase = getApplicationsSupabaseClient();
 
-    if (TransactionReference) {
-      const result = await supabase
-        .from('transactions')
-        .select('*')
-        .eq('reference', TransactionReference)
+    const newAttemptStatus = status === 'success' ? 'success' : status === 'cancelled' ? 'cancelled' : 'failed';
+
+    if (CheckoutRequestID) {
+      const { data: paymentAttempt, error: attemptFetchError } = await appSupabase
+        .from('payment_attempts')
+        .select('id, application_id')
+        .eq('checkout_request_id', CheckoutRequestID)
         .maybeSingle();
-      transaction = result.data;
-    }
 
-    if (!transaction && Msisdn) {
-      const result = await supabase
-        .from('transactions')
-        .select('*')
-        .eq('phone', Msisdn)
-        .eq('status', 'pending')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      transaction = result.data;
-    }
+      if (attemptFetchError) {
+        console.error('payment_attempts fetch error:', attemptFetchError);
+      }
 
-    if (transaction) {
-      console.log('Found transaction to update:', transaction.id);
+      if (paymentAttempt?.id) {
+        const { error: attemptUpdateError } = await appSupabase
+          .from('payment_attempts')
+          .update({ status: newAttemptStatus })
+          .eq('checkout_request_id', CheckoutRequestID);
 
-      const { error: updateError } = await supabase
-        .from('transactions')
-        .update({
-          status: status,
-          result_code: ResponseCode.toString(),
-          result_description: statusMessage,
-          receipt_number: TransactionReceipt !== 'N/A' ? TransactionReceipt : null,
-          merchant_request_id: MerchantRequestID,
-          checkout_request_id: CheckoutRequestID,
-          transaction_date: parsedDate,
-          transaction_id: TransactionID,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', transaction.id);
-
-      if (updateError) {
-        console.error('Database update error:', updateError);
+        if (attemptUpdateError) {
+          console.error('payment_attempts update error:', attemptUpdateError);
+        }
       } else {
-        console.log('Transaction updated successfully:', TransactionID, 'Status:', status);
+        const { error: attemptInsertError } = await appSupabase
+          .from('payment_attempts')
+          .insert({
+            user_id: null,
+            application_id: null,
+            interview_booking_id: null,
+            purpose: 'unknown',
+            checkout_request_id: CheckoutRequestID,
+            phone_number: Msisdn || null,
+            amount: typeof TransactionAmount === 'number' ? TransactionAmount : Number(TransactionAmount) || 0,
+            status: newAttemptStatus,
+          });
+
+        if (attemptInsertError) {
+          console.error('payment_attempts insert error:', attemptInsertError);
+        }
+      }
+
+      if (status === 'success') {
+        const applicationsUpdateQuery = appSupabase
+          .from('applications')
+          .update({ payment_status: 'paid', payment_reference: CheckoutRequestID });
+
+        const { error: applicationsUpdateError } = paymentAttempt?.application_id
+          ? await applicationsUpdateQuery.eq('id', paymentAttempt.application_id)
+          : await applicationsUpdateQuery.eq('payment_reference', CheckoutRequestID);
+
+        if (applicationsUpdateError) {
+          console.error('applications update error:', applicationsUpdateError);
+        }
       }
     } else {
-      console.error('Transaction not found for webhook');
+      console.error('CheckoutRequestID missing - cannot update payment_attempts');
     }
 
     return res.status(200).json({

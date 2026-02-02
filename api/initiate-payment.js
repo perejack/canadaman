@@ -1,9 +1,23 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = 'https://dbpbvoqfexofyxcexmmp.supabase.co'
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRicGJ2b3FmZXhvZnl4Y2V4bW1wIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkzNDc0NTMsImV4cCI6MjA3NDkyMzQ1M30.hGn7ux2xnRxseYCjiZfCLchgOEwIlIAUkdS6h7byZqc'
+const supabaseUrl = process.env.APP_SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+const supabaseKey =
+  process.env.APP_SUPABASE_SERVICE_ROLE_KEY ||
+  process.env.VITE_SUPABASE_ANON_KEY ||
+  process.env.APP_SUPABASE_ANON_KEY;
+
+if (!supabaseUrl || !supabaseKey) {
+  throw new Error('Missing Supabase config. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY for the Applications DB (or APP_SUPABASE_URL and APP_SUPABASE_ANON_KEY).');
+}
 
 const supabase = createClient(supabaseUrl, supabaseKey);
+
+function getApplicationsSupabaseClient() {
+  if (process.env.APP_SUPABASE_URL && process.env.APP_SUPABASE_SERVICE_ROLE_KEY) {
+    return createClient(process.env.APP_SUPABASE_URL, process.env.APP_SUPABASE_SERVICE_ROLE_KEY);
+  }
+  return supabase;
+}
 
 // SwiftPay Configuration
 const SWIFTPAY_API_KEY = process.env.SWIFTPAY_API_KEY;
@@ -47,7 +61,15 @@ export default async (req, res) => {
       console.error('Request body is missing or empty');
       return res.status(400).json({ success: false, message: 'Request body is missing or invalid' });
     }
-    let { phoneNumber, amount = 250, description = 'Account Verification Fee' } = req.body;
+    let {
+      phoneNumber,
+      amount = 250,
+      description = 'Account Verification Fee',
+      applicationId,
+      interviewBookingId,
+      purpose,
+      userId,
+    } = req.body;
 
     console.log('Parsed request:', { phoneNumber, amount, description });
 
@@ -98,17 +120,25 @@ export default async (req, res) => {
       const checkoutId = data.data?.checkout_id || data.data?.request_id || data.CheckoutRequestID || externalReference;
       
       try {
-        const { error: dbError } = await supabase
-          .from('transactions')
+        const appSupabase = getApplicationsSupabaseClient();
+        const inferredPurpose = purpose || (applicationId ? 'application' : interviewBookingId ? 'interview_booking' : 'unknown');
+        const { error: dbError } = await appSupabase
+          .from('payment_attempts')
           .insert({
-            transaction_request_id: checkoutId,
-            amount: parseFloat(amount)
+            user_id: userId || null,
+            application_id: applicationId || null,
+            interview_booking_id: interviewBookingId || null,
+            purpose: inferredPurpose,
+            checkout_request_id: checkoutId,
+            phone_number: normalizedPhone,
+            amount: parseFloat(amount),
+            status: 'pending',
           });
 
         if (dbError) {
           console.error('Database insert error:', dbError);
         } else {
-          console.log('Transaction stored in database:', checkoutId);
+          console.log('Payment attempt stored in database:', checkoutId);
         }
       } catch (dbErr) {
         console.error('Database error:', dbErr);
