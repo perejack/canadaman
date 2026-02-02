@@ -1,0 +1,415 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Playfair+Display:wght@400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Modern Canadian Immigration Design System - Professional & Aesthetic */
+
+@layer base {
+  /* Smooth scrolling for anchor links */
+  html {
+    scroll-behavior: smooth;
+    scroll-padding-top: 80px; /* Account for fixed header */
+  }
+
+  :root {
+    /* Canadian Brand Colors - Modern Palette */
+    --canadian-red: 0 73% 41%;
+    --canadian-red-deep: 0 85% 35%;
+    --canadian-red-light: 0 73% 95%;
+    --canadian-blue: 220 91% 42%;
+    --canadian-blue-deep: 220 91% 35%;
+    --canadian-blue-light: 220 91% 95%;
+    
+    /* Modern Neutral Palette */
+    --background: 0 0% 100%;
+    --foreground: 215 25% 27%;
+    --surface: 210 20% 98%;
+    --surface-secondary: 210 20% 96%;
+    --surface-elevated: 0 0% 100%;
+
+    /* Brand Primary */
+    --primary: var(--canadian-red);
+    --primary-foreground: 0 0% 100%;
+    --primary-hover: var(--canadian-red-deep);
+    --primary-light: var(--canadian-red-light);
+
+    /* Secondary Brand */
+    --secondary: var(--canadian-blue);
+    --secondary-foreground: 0 0% 100%;
+    --secondary-hover: var(--canadian-blue-deep);
+    --secondary-light: var(--canadian-blue-light);
+
+    /* Semantic Colors */
+    --card: 0 0% 100%;
+    --card-foreground: 215 25% 27%;
+    --card-border: 210 20% 90%;
+
+    --muted: var(--surface);
+    --muted-foreground: 215 15% 55%;
+
+    --accent: 210 20% 96%;
+    --accent-foreground: 215 25% 27%;
+
+    --border: 210 20% 88%;
+    --input: 210 20% 94%;
+    --ring: var(--canadian-red);
+
+    /* Interactive States */
+    --success: 142 71% 45%;
+    --success-foreground: 0 0% 100%;
+    --success-light: 142 71% 95%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+    --warning-light: 38 92% 95%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* Modern Canadian Colors */
+    --canadian-solid-red: hsl(var(--canadian-red));
+    --canadian-solid-blue: hsl(var(--canadian-blue));
+    --canadian-accent: hsl(var(--canadian-red-deep));
+    --maple-gold: 45 100% 51%;
+    --arctic-white: 210 20% 98%;
+
+    /* Modern Shadows */
+    --shadow-sm: 0 1px 3px hsl(215 25% 27% / 0.08);
+    --shadow-md: 0 4px 12px hsl(215 25% 27% / 0.1);
+    --shadow-lg: 0 8px 25px hsl(215 25% 27% / 0.12);
+    --shadow-xl: 0 16px 40px hsl(215 25% 27% / 0.15);
+    --shadow-canadian: 0 8px 32px hsl(var(--canadian-red) / 0.15);
+    --shadow-blue: 0 8px 32px hsl(var(--canadian-blue) / 0.15);
+
+    /* Modern Animations */
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-bounce: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    --transition-spring: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+
+    --radius: 0.875rem;
+    --radius-lg: 1rem;
+    --radius-xl: 1.25rem;
+
+    --sidebar-background: 0 0% 98%;
+
+    --sidebar-foreground: 240 5.3% 26.1%;
+
+    --sidebar-primary: 240 5.9% 10%;
+
+    --sidebar-primary-foreground: 0 0% 98%;
+
+    --sidebar-accent: 240 4.8% 95.9%;
+
+    --sidebar-accent-foreground: 240 5.9% 10%;
+
+    --sidebar-border: 220 13% 91%;
+
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 212.7 26.8% 83.9%;
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Smooth scrolling */
+  html {
+    scroll-behavior: smooth;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-muted;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-primary/30 rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-primary/50;
+  }
+}
+
+@layer components {
+  /* Modern Button Variants */
+  .btn-hero {
+    @apply bg-primary text-white font-semibold px-8 py-4 rounded-xl shadow-lg hover:shadow-canadian transform hover:scale-[1.02] transition-all duration-300 hover:bg-primary-hover border-0;
+  }
+
+  .btn-outline-canadian {
+    @apply border-2 border-primary text-primary bg-transparent hover:bg-primary hover:text-white font-semibold px-6 py-3 rounded-lg transition-all duration-300 hover:shadow-md;
+  }
+
+  .btn-secondary {
+    @apply bg-secondary text-white font-semibold px-6 py-3 rounded-lg shadow-md hover:shadow-blue transform hover:scale-[1.02] transition-all duration-300 hover:bg-secondary-hover;
+  }
+
+  /* Modern Card Styles */
+  .card-interactive {
+    @apply bg-card border border-card-border rounded-xl p-6 shadow-md hover:shadow-xl transform hover:-translate-y-2 transition-all duration-300 hover:border-primary/20;
+  }
+
+  .card-job {
+    @apply bg-card border border-card-border rounded-lg p-6 hover:shadow-lg hover:border-primary/30 transition-all duration-300 cursor-pointer hover:-translate-y-1;
+  }
+
+  .card-feature {
+    @apply bg-surface-elevated border border-card-border rounded-xl p-8 shadow-sm hover:shadow-md transition-all duration-300 hover:border-primary/20;
+  }
+
+  /* Modern Solid Backgrounds */
+  .bg-canadian-red {
+    background: var(--canadian-solid-red);
+  }
+
+  .bg-canadian-blue {
+    background: var(--canadian-solid-blue);
+  }
+
+  .bg-surface-elevated {
+    background: var(--surface-elevated);
+  }
+
+  .bg-primary-light {
+    background: hsl(var(--primary-light));
+  }
+
+  .bg-secondary-light {
+    background: hsl(var(--secondary-light));
+  }
+
+  .bg-success-light {
+    background: hsl(var(--success-light));
+  }
+
+  /* Text Colors */
+  .text-canadian-red {
+    color: var(--canadian-solid-red);
+  }
+
+  .text-canadian-blue {
+    color: var(--canadian-solid-blue);
+  }
+
+  /* Modern Interactive Elements */
+  .nav-link {
+    @apply text-foreground hover:text-primary font-medium transition-all duration-300 relative px-3 py-2 rounded-lg hover:bg-primary-light/50;
+  }
+
+  .nav-link::after {
+    content: '';
+    @apply absolute -bottom-1 left-3 right-3 h-0.5 bg-primary scale-x-0 transition-transform duration-300 origin-left;
+  }
+
+  .nav-link:hover::after {
+    @apply scale-x-100;
+  }
+
+  .nav-link-active {
+    @apply text-primary bg-primary-light/30;
+  }
+
+  .nav-link-active::after {
+    @apply scale-x-100;
+  }
+
+  /* Modern Section Spacing */
+  .section-padding {
+    @apply py-16 md:py-20 lg:py-24;
+  }
+
+  .section-padding-sm {
+    @apply py-12 md:py-16 lg:py-20;
+  }
+
+  /* Header spacing for full-screen sections */
+  .header-spacing {
+    @apply pt-20 sm:pt-24;
+  }
+
+  /* Combined section padding with header spacing for top sections */
+  .section-padding-top {
+    @apply pt-32 pb-16 md:pt-36 md:pb-20 lg:pt-40 lg:pb-24;
+  }
+
+  /* Dropdown and overlay z-index fixes */
+  [data-radix-select-content] {
+    z-index: 9999 !important;
+    background-color: white !important;
+    border: 1px solid #e2e8f0 !important;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04) !important;
+  }
+
+  [data-radix-popper-content-wrapper] {
+    z-index: 9999 !important;
+  }
+
+  /* Ensure dropdowns appear above all other content */
+  .select-dropdown-overlay {
+    position: fixed !important;
+    z-index: 9999 !important;
+  }
+
+  /* Fix for form cards and containers that might interfere with dropdowns */
+  .form-container {
+    position: relative;
+    z-index: 1;
+  }
+
+  /* Ensure select triggers don't create stacking context issues */
+  [data-radix-select-trigger] {
+    position: relative;
+    z-index: 2;
+  }
+
+  /* Additional Radix UI dropdown fixes */
+  [data-radix-portal] {
+    z-index: 9999 !important;
+  }
+
+  .container-custom {
+    @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
+  }
+
+  .container-narrow {
+    @apply max-w-4xl mx-auto px-4 sm:px-6 lg:px-8;
+  }
+
+  /* Modern Animations */
+  .animate-float {
+    animation: float 6s ease-in-out infinite;
+  }
+
+  .animate-slide-up {
+    animation: slideUp 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .animate-fade-in {
+    animation: fadeIn 0.6s ease-out;
+  }
+
+  .animate-scale-in {
+    animation: scaleIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  }
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-20px); }
+  }
+
+  @keyframes slideUp {
+    from {
+      opacity: 0;
+      transform: translateY(30px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes scaleIn {
+    from {
+      opacity: 0;
+      transform: scale(0.9);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  /* Modern Focus States */
+  .focus-canadian {
+    @apply focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background;
+  }
+
+  /* Typography Classes */
+  .heading-display {
+    font-family: 'Playfair Display', serif;
+    @apply font-bold tracking-tight;
+  }
+
+  .heading-primary {
+    @apply font-bold tracking-tight text-foreground;
+  }
+
+  .text-body {
+    @apply text-muted-foreground leading-relaxed;
+  }
+
+  /* Status Indicators */
+  .status-success {
+    @apply bg-success-light text-success border border-success/20 px-3 py-1 rounded-full text-sm font-medium;
+  }
+
+  .status-warning {
+    @apply bg-warning-light text-warning border border-warning/20 px-3 py-1 rounded-full text-sm font-medium;
+  }
+
+  .status-info {
+    @apply bg-secondary-light text-secondary border border-secondary/20 px-3 py-1 rounded-full text-sm font-medium;
+  }
+}

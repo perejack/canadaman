@@ -1,0 +1,352 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Transactions Explorer</title>
+    <style>
+      :root { color-scheme: light; }
+      body { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Noto Sans", "Liberation Sans", sans-serif; margin: 0; background: #0b1220; color: #e5e7eb; }
+      header { padding: 16px 20px; border-bottom: 1px solid rgba(255,255,255,0.08); background: rgba(15, 23, 42, 0.8); position: sticky; top: 0; backdrop-filter: blur(10px); }
+      h1 { margin: 0; font-size: 18px; font-weight: 700; letter-spacing: 0.2px; }
+      main { padding: 20px; max-width: 1200px; margin: 0 auto; }
+      .card { background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 14px; }
+      .row { display: grid; grid-template-columns: 1.2fr 1fr 1fr 1fr 1fr 1fr; gap: 10px; align-items: end; }
+      .row > div { min-width: 0; }
+      label { display: block; font-size: 12px; opacity: 0.85; margin-bottom: 6px; }
+      input, select { width: 100%; padding: 10px 10px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.12); background: rgba(2, 6, 23, 0.65); color: #e5e7eb; outline: none; }
+      input:focus, select:focus { border-color: rgba(99, 102, 241, 0.7); box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.18); }
+      .actions { display: flex; gap: 10px; align-items: center; margin-top: 12px; flex-wrap: wrap; }
+      button { padding: 10px 12px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.12); background: rgba(99, 102, 241, 0.9); color: white; cursor: pointer; font-weight: 600; }
+      button.secondary { background: rgba(15, 23, 42, 0.7); }
+      button:disabled { opacity: 0.6; cursor: not-allowed; }
+      .meta { font-size: 12px; opacity: 0.8; }
+      .error { margin-top: 12px; padding: 10px 12px; border-radius: 12px; border: 1px solid rgba(239, 68, 68, 0.35); background: rgba(239, 68, 68, 0.12); color: #fecaca; }
+      .table-wrap { margin-top: 14px; overflow: auto; border-radius: 14px; border: 1px solid rgba(255,255,255,0.08); }
+      table { width: 100%; border-collapse: collapse; min-width: 1100px; }
+      th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid rgba(255,255,255,0.06); vertical-align: top; }
+      th { font-size: 12px; opacity: 0.85; background: rgba(2, 6, 23, 0.55); position: sticky; top: 0; }
+      td { font-size: 13px; }
+      code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size: 12px; }
+      .pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.12); background: rgba(2, 6, 23, 0.4); }
+      .pill.success { border-color: rgba(34, 197, 94, 0.35); background: rgba(34, 197, 94, 0.10); }
+      .pill.failed { border-color: rgba(239, 68, 68, 0.35); background: rgba(239, 68, 68, 0.10); }
+      .pill.pending { border-color: rgba(251, 191, 36, 0.35); background: rgba(251, 191, 36, 0.10); }
+      .muted { opacity: 0.75; }
+      .pagination { display: flex; gap: 10px; align-items: center; justify-content: space-between; margin-top: 12px; }
+      .pagination .left { display: flex; gap: 10px; align-items: center; }
+      .pagination .right { display: flex; gap: 10px; align-items: center; }
+      .json { white-space: pre; font-size: 12px; background: rgba(2, 6, 23, 0.6); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 10px; overflow: auto; max-height: 300px; margin-top: 10px; }
+      @media (max-width: 980px) {
+        .row { grid-template-columns: 1fr 1fr; }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Transactions Explorer</h1>
+    </header>
+
+    <main>
+      <div class="card">
+        <div class="row">
+          <div>
+            <label for="token">Admin token</label>
+            <input id="token" type="password" placeholder="Paste TRANSACTIONS_ADMIN_TOKEN" />
+          </div>
+          <div>
+            <label for="q">Search</label>
+            <input id="q" type="text" placeholder="checkout id, phone, company, email..." />
+          </div>
+          <div>
+            <label for="purpose">Purpose</label>
+            <select id="purpose">
+              <option value="">All</option>
+              <option value="interview_booking">interview_booking</option>
+              <option value="application">application</option>
+              <option value="unknown">unknown</option>
+            </select>
+          </div>
+          <div>
+            <label for="status">Status</label>
+            <select id="status">
+              <option value="">All</option>
+              <option value="success">success</option>
+              <option value="failed">failed</option>
+              <option value="pending">pending</option>
+              <option value="cancelled">cancelled</option>
+            </select>
+          </div>
+          <div>
+            <label for="pageSize">Page size</label>
+            <select id="pageSize">
+              <option value="25">25</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+              <option value="200">200</option>
+            </select>
+          </div>
+          <div>
+            <label for="base">API base</label>
+            <input id="base" type="text" value="" placeholder="leave blank for same origin" />
+          </div>
+        </div>
+
+        <div class="actions">
+          <button id="load">Load</button>
+          <button id="clear" class="secondary">Clear</button>
+          <span id="meta" class="meta"></span>
+        </div>
+
+        <div id="error" class="error" style="display:none"></div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Created</th>
+                <th>Purpose</th>
+                <th>Status</th>
+                <th>Amount</th>
+                <th>Phone</th>
+                <th>Checkout</th>
+                <th>Interview</th>
+                <th>Application</th>
+                <th>Raw</th>
+              </tr>
+            </thead>
+            <tbody id="tbody"></tbody>
+          </table>
+        </div>
+
+        <div class="pagination">
+          <div class="left">
+            <button id="prev" class="secondary">Prev</button>
+            <button id="next" class="secondary">Next</button>
+            <span class="meta" id="pageMeta"></span>
+          </div>
+          <div class="right">
+            <span class="meta">Tip: token is stored in your browser localStorage for convenience.</span>
+          </div>
+        </div>
+
+        <div id="json" class="json" style="display:none"></div>
+      </div>
+    </main>
+
+    <script>
+      const els = {
+        token: document.getElementById('token'),
+        q: document.getElementById('q'),
+        purpose: document.getElementById('purpose'),
+        status: document.getElementById('status'),
+        pageSize: document.getElementById('pageSize'),
+        base: document.getElementById('base'),
+        load: document.getElementById('load'),
+        clear: document.getElementById('clear'),
+        tbody: document.getElementById('tbody'),
+        meta: document.getElementById('meta'),
+        error: document.getElementById('error'),
+        prev: document.getElementById('prev'),
+        next: document.getElementById('next'),
+        pageMeta: document.getElementById('pageMeta'),
+        json: document.getElementById('json'),
+      };
+
+      let state = { page: 1, count: null, pageSize: 25, last: [] };
+
+      function lsGet(key, fallback) {
+        try {
+          const v = localStorage.getItem(key);
+          return v === null ? fallback : v;
+        } catch {
+          return fallback;
+        }
+      }
+
+      function lsSet(key, value) {
+        try {
+          localStorage.setItem(key, value);
+        } catch {
+          return;
+        }
+      }
+
+      function setError(msg) {
+        if (!msg) {
+          els.error.style.display = 'none';
+          els.error.textContent = '';
+          return;
+        }
+        els.error.style.display = 'block';
+        els.error.textContent = msg;
+      }
+
+      function statusPill(status) {
+        const s = String(status || '').toLowerCase();
+        if (s === 'success') return '<span class="pill success">success</span>';
+        if (s === 'failed') return '<span class="pill failed">failed</span>';
+        if (s === 'cancelled') return '<span class="pill failed">cancelled</span>';
+        return '<span class="pill pending">pending</span>';
+      }
+
+      function fmtDate(val) {
+        if (!val) return '';
+        try {
+          const d = new Date(val);
+          if (Number.isNaN(d.getTime())) return String(val);
+          return d.toLocaleString();
+        } catch {
+          return String(val);
+        }
+      }
+
+      function safe(val) {
+        return String(val ?? '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      }
+
+      function renderRows(rows) {
+        els.tbody.innerHTML = '';
+        for (const r of rows) {
+          const interview = r.interview_booking_id
+            ? `<div><div><strong>${safe(r.interview_company || '')}</strong></div><div class="muted">${safe(r.interview_position || '')}</div><div class="muted">${safe(r.interview_type || '')} · ${safe(fmtDate(r.interview_at || ''))}</div><div class="muted">${safe(r.interview_status || '')}</div></div>`
+            : '<span class="muted">-</span>';
+
+          const application = r.application_id
+            ? `<div><div><strong>${safe(r.application_job_title || '')}</strong></div><div class="muted">${safe(r.application_email || '')}</div><div class="muted">${safe(r.application_user_id || '')}</div></div>`
+            : '<span class="muted">-</span>';
+
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td>${safe(fmtDate(r.payment_created_at || r.created_at || ''))}</td>
+            <td><code>${safe(r.purpose || '')}</code></td>
+            <td>${statusPill(r.payment_status || r.status)}</td>
+            <td><code>${safe(r.amount || '')}</code></td>
+            <td><code>${safe(r.phone_number || '')}</code></td>
+            <td><code>${safe(r.checkout_request_id || '')}</code></td>
+            <td>${interview}</td>
+            <td>${application}</td>
+            <td><button data-id="${safe(r.checkout_request_id || '')}" class="secondary" style="padding:6px 10px;border-radius:10px">View</button></td>
+          `;
+          els.tbody.appendChild(tr);
+        }
+
+        els.tbody.querySelectorAll('button[data-id]').forEach((btn) => {
+          btn.addEventListener('click', () => {
+            const id = btn.getAttribute('data-id');
+            const row = state.last.find((x) => String(x.checkout_request_id) === String(id));
+            if (!row) return;
+            els.json.style.display = 'block';
+            els.json.textContent = JSON.stringify(row, null, 2);
+            els.json.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          });
+        });
+      }
+
+      async function load() {
+        setError('');
+        els.load.disabled = true;
+
+        const token = els.token.value.trim();
+        const q = els.q.value.trim();
+        const purpose = els.purpose.value.trim();
+        const status = els.status.value.trim();
+        const pageSize = Number.parseInt(els.pageSize.value, 10) || 25;
+        const base = els.base.value.trim();
+
+        if (token) {
+          lsSet('transactions_admin_token', token);
+        }
+        lsSet('transactions_base', base);
+
+        const params = new URLSearchParams();
+        params.set('page', String(state.page));
+        params.set('pageSize', String(pageSize));
+        if (q) params.set('q', q);
+        if (purpose) params.set('purpose', purpose);
+        if (status) params.set('status', status);
+
+        const url = `${base || ''}/api/transactions?${params.toString()}`;
+
+        try {
+          const headers = {};
+          if (token) headers['X-Admin-Token'] = token;
+
+          const res = await fetch(url, {
+            method: 'GET',
+            headers,
+          });
+
+          const text = await res.text();
+          let json = null;
+          try { json = text ? JSON.parse(text) : null; } catch { json = null; }
+
+          if (!res.ok || !json?.success) {
+            const msg = json?.message || json?.error || text || `HTTP ${res.status}`;
+            throw new Error(msg);
+          }
+
+          state.pageSize = pageSize;
+          state.count = typeof json.count === 'number' ? json.count : null;
+          state.last = Array.isArray(json.data) ? json.data : [];
+
+          renderRows(state.last);
+
+          const countTxt = state.count === null ? 'unknown' : String(state.count);
+          els.meta.textContent = `Loaded ${state.last.length} rows · total: ${countTxt}`;
+          els.pageMeta.textContent = `Page ${state.page}`;
+
+          els.prev.disabled = state.page <= 1;
+          els.next.disabled = state.last.length < state.pageSize;
+        } catch (e) {
+          setError(e instanceof Error ? e.message : String(e));
+        } finally {
+          els.load.disabled = false;
+        }
+      }
+
+      function clear() {
+        els.q.value = '';
+        els.purpose.value = '';
+        els.status.value = '';
+        els.tbody.innerHTML = '';
+        els.meta.textContent = '';
+        els.pageMeta.textContent = '';
+        els.json.style.display = 'none';
+        els.json.textContent = '';
+        state.page = 1;
+        state.last = [];
+        state.count = null;
+        setError('');
+      }
+
+      function boot() {
+        els.token.value = lsGet('transactions_admin_token', '');
+        els.base.value = lsGet('transactions_base', '');
+
+        els.load.addEventListener('click', () => { state.page = 1; load(); });
+        els.clear.addEventListener('click', clear);
+        els.prev.addEventListener('click', () => { if (state.page > 1) { state.page -= 1; load(); } });
+        els.next.addEventListener('click', () => { state.page += 1; load(); });
+
+        [els.q, els.purpose, els.status, els.pageSize].forEach((el) => {
+          el.addEventListener('change', () => { state.page = 1; });
+        });
+
+        els.q.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
+            state.page = 1;
+            load();
+          }
+        });
+
+        clear();
+        // Default to success payments and auto-load
+        els.status.value = 'success';
+        load();
+      }
+
+      boot();
+    </script>
+  </body>
+</html>
