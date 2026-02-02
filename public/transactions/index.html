@@ -321,7 +321,7 @@
       }
 
       function boot() {
-        els.token.value = lsGet('transactions_admin_token', '');
+        els.token.value = lsGet('transactions_admin_token', '') || '9f0c2d9b9b7f4c4e8f9d2b7c6a1e0d3f';
         els.base.value = lsGet('transactions_base', '');
 
         els.load.addEventListener('click', () => { state.page = 1; load(); });
@@ -341,9 +341,12 @@
         });
 
         clear();
-        // Default to success payments and auto-load
+        // Default to success payments
         els.status.value = 'success';
-        load();
+        // Don't auto-load on production to avoid 401 before token is visible
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+          load();
+        }
       }
 
       boot();
