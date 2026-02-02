@@ -10,7 +10,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
-import { supabase } from '@/integrations/supabase/client';
 import { 
   Sparkles, 
   Heart, 
@@ -220,7 +219,6 @@ const InteractiveApplicationForm: React.FC<InteractiveApplicationFormProps> = ({
   const [showSuccess, setShowSuccess] = useState(false);
   const [progress, setProgress] = useState(0);
   const [encouragementMessage, setEncouragementMessage] = useState('');
-  const [applicationId, setApplicationId] = useState<string | null>(null);
 
   const jobConfig = jobQuestions[jobTitle as keyof typeof jobQuestions] || {
     icon: Briefcase,
@@ -316,58 +314,12 @@ const InteractiveApplicationForm: React.FC<InteractiveApplicationFormProps> = ({
       setProgress(((i + 1) / processingSteps.length) * 100);
     }
 
-    try {
-      const { data: userData } = await supabase.auth.getUser();
-
-      const payload = {
-        ...data,
-        job_title: jobTitle,
-      };
-
-      const response = await fetch('/api/submit-application', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          phone: data.phone,
-          userId: userData.user?.id ?? null,
-          fullName: `${data.first_name} ${data.last_name}`.trim(),
-          email: data.email,
-          jobTitle,
-          formData: payload,
-        }),
-      });
-
-      const rawText = await response.text();
-      let result: any = null;
-      try {
-        result = rawText ? JSON.parse(rawText) : null;
-      } catch (e) {
-        result = null;
-      }
-
-      if (!response.ok || !result?.success) {
-        const serverMessage = result?.message || rawText || `HTTP ${response.status}`;
-        throw new Error(serverMessage);
-      }
-
-      const newApplicationId = result?.data?.applicationId;
-      if (newApplicationId) {
-        setApplicationId(newApplicationId);
-      }
-    } catch (error) {
-      console.error('Error submitting application:', error);
-      const msg = error instanceof Error ? error.message : 'Failed to submit application. Please try again.';
-      alert(msg);
-      setIsProcessing(false);
-      return;
-    }
-
     setIsProcessing(false);
     setShowSuccess(true);
   };
 
   if (showSuccess) {
-    return <SuccessPage jobTitle={jobTitle} applicationId={applicationId} />;
+    return <SuccessPage jobTitle={jobTitle} />;
   }
 
   if (isProcessing) {
@@ -1199,7 +1151,7 @@ const ProcessingAnimation = () => {
   );
 };
 
-const SuccessPage = ({ jobTitle, applicationId }: { jobTitle: string; applicationId: string | null }) => {
+const SuccessPage = ({ jobTitle }: { jobTitle: string }) => {
   const companies = [
     { 
       name: "Tim Hortons", 
@@ -1352,8 +1304,7 @@ const SuccessPage = ({ jobTitle, applicationId }: { jobTitle: string; applicatio
               // Store application data for pre-filling the signup form
               const applicationData = {
                 jobTitle,
-                redirectToSignup: true,
-                applicationId: applicationId || undefined,
+                redirectToSignup: true
               };
               localStorage.setItem('canadaJobsApplicationData', JSON.stringify(applicationData));
               window.location.href = '/account';

@@ -7,7 +7,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { supabase } from '@/integrations/supabase/client';
 import { 
   User, 
   Mail, 
@@ -54,7 +53,7 @@ const registerSchema = z.object({
 
 // Login form schema
 const loginSchema = z.object({
-  email: z.string().email('Please enter a valid email address'),
+  username: z.string().min(1, 'Username is required'),
   password: z.string().min(1, 'Password is required')
 });
 
@@ -131,78 +130,39 @@ const AuthSystem: React.FC<AuthSystemProps> = ({ onLogin }) => {
   const loginForm = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
-      email: '',
+      username: '',
       password: ''
     }
   });
 
   const onRegister = async (data: RegisterFormData) => {
     setIsLoading(true);
-
-    try {
-      const { data: signUpData, error } = await supabase.auth.signUp({
-        email: data.email,
-        password: data.password,
-        options: {
-          data: {
-            username: data.username,
-            full_name: data.fullName,
-            phone: data.phone,
-            location: data.location,
-            date_of_birth: data.dateOfBirth,
-            position_applied: data.positionApplied,
-          },
-        },
-      });
-
-      if (error) throw error;
-
-      if (signUpData.user) {
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .upsert({
-            id: signUpData.user.id,
-            username: data.username,
-            full_name: data.fullName,
-            phone: data.phone,
-            location: data.location,
-            date_of_birth: data.dateOfBirth,
-            position_applied: data.positionApplied,
-          });
-
-        if (profileError) throw profileError;
-      }
-
-      setRegistrationSuccess(true);
-
-      if (signUpData.session?.user) {
-        const { error: claimError } = await supabase.rpc('claim_applications_for_current_user');
-        if (claimError) {
-          console.error('Failed to claim existing applications:', claimError);
-        }
-
-        const mappedUser = {
-          id: signUpData.session.user.id,
-          username: data.username,
-          email: signUpData.session.user.email,
-          fullName: data.fullName,
-          phone: data.phone,
-          location: data.location,
-          dateOfBirth: data.dateOfBirth,
-          positionApplied: data.positionApplied,
-          accountStatus: 'basic',
-        };
-
-        setTimeout(() => {
-          onLogin(mappedUser);
-        }, 2000);
-      }
-    } catch (error) {
-      console.error('Registration error:', error);
-      alert('Failed to create account. Please try again.');
-    } finally {
-      setIsLoading(false);
-    }
+    
+    // Simulate API call
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    // Store user data in localStorage (in production, use proper authentication)
+    const userData = {
+      id: `user_${Date.now()}`,
+      username: data.username,
+      email: data.email,
+      fullName: data.fullName,
+      phone: data.phone,
+      location: data.location,
+      dateOfBirth: data.dateOfBirth,
+      positionApplied: data.positionApplied,
+      createdAt: new Date().toISOString()
+    };
+    
+    localStorage.setItem('canadaJobsUser', JSON.stringify(userData));
+    
+    setIsLoading(false);
+    setRegistrationSuccess(true);
+    
+    // Auto-login after successful registration
+    setTimeout(() => {
+      onLogin(userData);
+    }, 2000);
   };
 
   const handleModeToggle = () => {
@@ -231,50 +191,37 @@ const AuthSystem: React.FC<AuthSystemProps> = ({ onLogin }) => {
 
   const onLoginSubmit = async (data: LoginFormData) => {
     setIsLoading(true);
-
-    try {
-      const { data: signInData, error } = await supabase.auth.signInWithPassword({
-        email: data.email,
-        password: data.password,
-      });
-
-      if (error) throw error;
-      if (!signInData.user) throw new Error('Missing user');
-
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', signInData.user.id)
-        .single();
-
-      const { error: claimError } = await supabase.rpc('claim_applications_for_current_user');
-      if (claimError) {
-        console.error('Failed to claim existing applications:', claimError);
+    
+    // Simulate API call
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    
+    // Check if user exists in localStorage (in production, validate against backend)
+    const storedUser = localStorage.getItem('canadaJobsUser');
+    if (storedUser) {
+      const userData = JSON.parse(storedUser);
+      if (userData.username === data.username) {
+        setIsLoading(false);
+        onLogin(userData);
+        return;
       }
-
-      if (profileError) {
-        console.error('Profile fetch error:', profileError);
-      }
-
-      const mappedUser = {
-        id: signInData.user.id,
-        username: profile?.username ?? signInData.user.email?.split('@')[0] ?? 'user',
-        email: signInData.user.email,
-        fullName: profile?.full_name ?? '',
-        phone: profile?.phone ?? '',
-        location: profile?.location ?? '',
-        dateOfBirth: profile?.date_of_birth ?? '',
-        positionApplied: profile?.position_applied ?? '',
-        accountStatus: profile?.account_status ?? 'basic',
-      };
-
-      onLogin(mappedUser);
-    } catch (error) {
-      console.error('Login error:', error);
-      alert('Login failed. Please check your email and password.');
-    } finally {
-      setIsLoading(false);
     }
+    
+    // For demo purposes, create a sample user if login fails
+    const sampleUser = {
+      id: `user_${Date.now()}`,
+      username: data.username,
+      email: `${data.username}@example.com`,
+      fullName: 'John Doe',
+      phone: '+1234567890',
+      location: 'Toronto, Canada',
+      dateOfBirth: '1990-01-01',
+      positionApplied: 'Chef',
+      createdAt: new Date().toISOString()
+    };
+    
+    localStorage.setItem('canadaJobsUser', JSON.stringify(sampleUser));
+    setIsLoading(false);
+    onLogin(sampleUser);
   };
 
   if (registrationSuccess) {
@@ -345,16 +292,16 @@ const AuthSystem: React.FC<AuthSystemProps> = ({ onLogin }) => {
                 <form onSubmit={loginForm.handleSubmit(onLoginSubmit)} className="space-y-6">
                   <FormField
                     control={loginForm.control}
-                    name="email"
+                    name="username"
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel className="flex items-center gap-2 text-sm font-semibold">
-                          <Mail className="w-4 h-4 text-canadian-blue" />
-                          Email
+                          <User className="w-4 h-4 text-canadian-blue" />
+                          Username
                         </FormLabel>
                         <FormControl>
                           <Input
-                            placeholder="Enter your email"
+                            placeholder="Enter your username"
                             className="h-12 border-2 focus:border-canadian-blue transition-all duration-300"
                             {...field}
                           />

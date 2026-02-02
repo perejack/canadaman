@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import AuthSystem from './auth/AuthSystem';
 import Dashboard from './dashboard/Dashboard';
 import MessagingInbox from './dashboard/MessagingInbox';
-import { supabase } from '@/integrations/supabase/client';
 
 const CanadaJobsApp: React.FC = () => {
   const [user, setUser] = useState<any>(null);
@@ -10,97 +9,29 @@ const CanadaJobsApp: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    let isMounted = true;
-
-    const loadUser = async () => {
+    // Check if user is already logged in
+    const storedUser = localStorage.getItem('canadaJobsUser');
+    if (storedUser) {
       try {
-        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-        if (sessionError) throw sessionError;
-
-        const sessionUser = sessionData.session?.user;
-        if (!sessionUser) {
-          if (isMounted) setUser(null);
-          return;
-        }
-
-        const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', sessionUser.id)
-          .single();
-
-        if (profileError) {
-          console.error('Profile fetch error:', profileError);
-        }
-
-        if (isMounted) {
-          setUser({
-            id: sessionUser.id,
-            username: profile?.username ?? sessionUser.email?.split('@')[0] ?? 'user',
-            email: sessionUser.email,
-            fullName: profile?.full_name ?? '',
-            phone: profile?.phone ?? '',
-            location: profile?.location ?? '',
-            dateOfBirth: profile?.date_of_birth ?? '',
-            positionApplied: profile?.position_applied ?? '',
-            accountStatus: profile?.account_status ?? 'basic',
-          });
-        }
+        const userData = JSON.parse(storedUser);
+        setUser(userData);
       } catch (error) {
-        console.error('Failed to load user session:', error);
-        if (isMounted) setUser(null);
+        console.error('Error parsing stored user data:', error);
+        localStorage.removeItem('canadaJobsUser');
       }
-    };
-
-    loadUser().finally(() => {
-      if (isMounted) setIsLoading(false);
-    });
-
-    const { data: subscription } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (!isMounted) return;
-      if (!session?.user) {
-        setUser(null);
-        return;
-      }
-
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', session.user.id)
-        .single();
-
-      if (profileError) {
-        console.error('Profile fetch error:', profileError);
-      }
-
-      setUser({
-        id: session.user.id,
-        username: profile?.username ?? session.user.email?.split('@')[0] ?? 'user',
-        email: session.user.email,
-        fullName: profile?.full_name ?? '',
-        phone: profile?.phone ?? '',
-        location: profile?.location ?? '',
-        dateOfBirth: profile?.date_of_birth ?? '',
-        positionApplied: profile?.position_applied ?? '',
-        accountStatus: profile?.account_status ?? 'basic',
-      });
-    });
-
-    return () => {
-      isMounted = false;
-      subscription.subscription.unsubscribe();
-    };
+    }
+    setIsLoading(false);
   }, []);
 
   const handleLogin = (userData: any) => {
     setUser(userData);
+    localStorage.setItem('canadaJobsUser', JSON.stringify(userData));
   };
 
   const handleLogout = () => {
-    supabase.auth.signOut().finally(() => {
-      setUser(null);
-      setCurrentView('dashboard');
-    });
+    setUser(null);
+    setCurrentView('dashboard');
+    localStorage.removeItem('canadaJobsUser');
   };
 
   const handleViewMessages = () => {

@@ -16,115 +16,91 @@ export type Database = {
     Tables: {
       applications: {
         Row: {
+          address: string | null
+          certifications: string[] | null
+          city: string | null
+          county: string | null
+          course_study: string | null
+          cover_letter: string | null
           created_at: string
-          data: Json
-          id: string
-          job_title: string
-          pending_email: string
-          source: string
-          user_id: string | null
-        }
-        Insert: {
-          created_at?: string
-          data: Json
-          id?: string
-          job_title: string
-          pending_email: string
-          source: string
-          user_id?: string | null
-        }
-        Update: {
-          created_at?: string
-          data?: Json
-          id?: string
-          job_title?: string
-          pending_email?: string
-          source?: string
-          user_id?: string | null
-        }
-        Relationships: []
-      }
-      profiles: {
-        Row: {
-          account_status: string
-          created_at: string
+          current_position: string | null
           date_of_birth: string | null
-          full_name: string | null
+          education_level: string | null
+          email: string
+          first_name: string
+          gender: string | null
+          graduation_year: number | null
           id: string
-          location: string | null
-          phone: string | null
-          position_applied: string | null
+          id_number: string | null
+          institution_name: string | null
+          job_references: Json | null
+          languages: string[] | null
+          last_name: string
+          nationality: string | null
+          phone: string
+          position_applied: string
+          previous_employer: string | null
+          skills: string[] | null
           updated_at: string
-          username: string | null
+          years_experience: number | null
         }
         Insert: {
-          account_status?: string
+          address?: string | null
+          certifications?: string[] | null
+          city?: string | null
+          county?: string | null
+          course_study?: string | null
+          cover_letter?: string | null
           created_at?: string
+          current_position?: string | null
           date_of_birth?: string | null
-          full_name?: string | null
-          id: string
-          location?: string | null
-          phone?: string | null
-          position_applied?: string | null
+          education_level?: string | null
+          email: string
+          first_name: string
+          gender?: string | null
+          graduation_year?: number | null
+          id?: string
+          id_number?: string | null
+          institution_name?: string | null
+          job_references?: Json | null
+          languages?: string[] | null
+          last_name: string
+          nationality?: string | null
+          phone: string
+          position_applied: string
+          previous_employer?: string | null
+          skills?: string[] | null
           updated_at?: string
-          username?: string | null
+          years_experience?: number | null
         }
         Update: {
-          account_status?: string
+          address?: string | null
+          certifications?: string[] | null
+          city?: string | null
+          county?: string | null
+          course_study?: string | null
+          cover_letter?: string | null
           created_at?: string
+          current_position?: string | null
           date_of_birth?: string | null
-          full_name?: string | null
+          education_level?: string | null
+          email?: string
+          first_name?: string
+          gender?: string | null
+          graduation_year?: number | null
           id?: string
-          location?: string | null
-          phone?: string | null
-          position_applied?: string | null
+          id_number?: string | null
+          institution_name?: string | null
+          job_references?: Json | null
+          languages?: string[] | null
+          last_name?: string
+          nationality?: string | null
+          phone?: string
+          position_applied?: string
+          previous_employer?: string | null
+          skills?: string[] | null
           updated_at?: string
-          username?: string | null
-        }
-        Relationships: []
-      }
-      interview_bookings: {
-        Row: {
-          company: string
-          created_at: string
-          id: string
-          interview_at: string
-          interview_date: string | null
-          interview_time: string | null
-          interview_type: string
-          payment_reference: string | null
-          position: string
-          status: string
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          company: string
-          created_at?: string
-          id?: string
-          interview_at: string
-          interview_date?: string | null
-          interview_time?: string | null
-          interview_type: string
-          payment_reference?: string | null
-          position: string
-          status?: string
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          company?: string
-          created_at?: string
-          id?: string
-          interview_at?: string
-          interview_date?: string | null
-          interview_time?: string | null
-          interview_type?: string
-          payment_reference?: string | null
-          position?: string
-          status?: string
-          updated_at?: string
-          user_id?: string
+          years_experience?: number | null
         }
         Relationships: []
       }

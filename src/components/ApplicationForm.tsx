@@ -187,17 +187,9 @@ export default function ApplicationForm() {
         certifications: data.certifications?.filter(cert => cert.trim() !== '') || [],
       };
 
-      const { data: userData } = await supabase.auth.getUser();
-
       const { error } = await supabase
         .from('applications')
-        .insert({
-          job_title: data.position_applied,
-          pending_email: data.email,
-          source: 'application_form',
-          user_id: userData.user?.id ?? null,
-          data: insertData as any,
-        });
+        .insert(insertData as any);
 
       if (error) throw error;
 

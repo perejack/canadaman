@@ -1,21 +1,9 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.APP_SUPABASE_URL;
-const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.APP_SUPABASE_ANON_KEY;
-
-if (!supabaseUrl || !supabaseKey) {
-  throw new Error('Missing Supabase config. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY for the Applications DB (or APP_SUPABASE_URL and APP_SUPABASE_ANON_KEY).');
-}
+const supabaseUrl = 'https://dbpbvoqfexofyxcexmmp.supabase.co'
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRicGJ2b3FmZXhvZnl4Y2V4bW1wIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkzNDc0NTMsImV4cCI6MjA3NDkyMzQ1M30.hGn7ux2xnRxseYCjiZfCLchgOEwIlIAUkdS6h7byZqc'
 
 const supabase = createClient(supabaseUrl, supabaseKey);
-
-function getApplicationsSupabaseClient() {
-  if (process.env.APP_SUPABASE_URL && process.env.APP_SUPABASE_SERVICE_ROLE_KEY) {
-    return createClient(process.env.APP_SUPABASE_URL, process.env.APP_SUPABASE_SERVICE_ROLE_KEY);
-  }
-  // Fallback: use the same Supabase project CANADAADS already uses.
-  return supabase;
-}
 
 // SwiftPay M-Pesa Verification Proxy
 const MPESA_PROXY_URL = process.env.MPESA_PROXY_URL || 'https://swiftpay-backend-uvv9.onrender.com/api/mpesa-verification-proxy';
@@ -75,77 +63,89 @@ export default async (req, res) => {
     }
     
     console.log('Checking status for reference:', reference);
-
-    const appSupabase = getApplicationsSupabaseClient();
-    const { data: paymentAttempt, error: attemptError } = await appSupabase
-      .from('payment_attempts')
+    
+    const { data: transaction, error: dbError } = await supabase
+      .from('transactions')
       .select('*')
-      .eq('checkout_request_id', reference)
+      .or(`reference.eq.${reference},transaction_request_id.eq.${reference}`)
       .maybeSingle();
-
-    if (attemptError) {
-      console.error('payment_attempts query error:', attemptError);
+    
+    if (dbError) {
+      console.error('Database query error:', dbError);
+      return res.status(500).json({
+        success: false,
+        message: 'Error checking payment status',
+        error: dbError.message || String(dbError)
+      });
     }
-
-    let paymentStatus = 'PENDING';
-    let receipt = null;
-    let resultCode = null;
-    let resultDesc = null;
-
-    try {
-      const proxyResponse = await queryMpesaPaymentStatus(reference);
-      if (proxyResponse && proxyResponse.success && proxyResponse.payment?.status === 'success') {
+    
+    if (transaction) {
+      console.log(`Payment status found for ${reference}:`, transaction);
+      
+      let paymentStatus = 'PENDING';
+      if (transaction.status === 'success') {
         paymentStatus = 'SUCCESS';
-        receipt = proxyResponse.payment?.receipt_number || proxyResponse.payment?.mpesaReceiptNumber || null;
-      } else if (proxyResponse && proxyResponse.payment?.status === 'failed') {
+      } else if (transaction.status === 'failed' || transaction.status === 'cancelled') {
         paymentStatus = 'FAILED';
       }
-    } catch (proxyError) {
-      console.error('Error querying M-Pesa via proxy:', proxyError);
-    }
-
-    const newAttemptStatus = paymentStatus === 'SUCCESS' ? 'success' : paymentStatus === 'FAILED' ? 'failed' : 'pending';
-
-    try {
-      const { error: payUpdateError } = await appSupabase
-        .from('payment_attempts')
-        .update({ status: newAttemptStatus })
-        .eq('checkout_request_id', reference);
-
-      if (payUpdateError) {
-        console.error('payment_attempts update error:', payUpdateError);
-      }
-    } catch (e) {
-      console.error('Failed to update payment_attempts:', e);
-    }
-
-    if (newAttemptStatus === 'success') {
-      try {
-        const { error: applicationsUpdateError } = await appSupabase
-          .from('applications')
-          .update({ payment_status: 'paid' })
-          .eq('payment_reference', reference);
-
-        if (applicationsUpdateError) {
-          console.error('applications update error:', applicationsUpdateError);
+      
+      // If status is still pending, query M-Pesa via SwiftPay proxy
+      if (paymentStatus === 'PENDING') {
+        console.log(`Status is pending, querying M-Pesa via proxy for ${transaction.transaction_request_id}`);
+        try {
+          const proxyResponse = await queryMpesaPaymentStatus(transaction.transaction_request_id);
+          
+          if (proxyResponse && proxyResponse.success && proxyResponse.payment.status === 'success') {
+            console.log(`Proxy confirmed payment success for ${transaction.transaction_request_id}, updating database`);
+            
+            // Update transaction to success
+            const { data: updatedTransaction, error: updateError } = await supabase
+              .from('transactions')
+              .update({
+                status: 'success'
+              })
+              .eq('id', transaction.id)
+              .select();
+            
+            if (!updateError && updatedTransaction && updatedTransaction.length > 0) {
+              paymentStatus = 'SUCCESS';
+              console.log(`Transaction ${transaction.transaction_request_id} updated to success:`, updatedTransaction[0]);
+            } else if (updateError) {
+              console.error('Error updating transaction:', updateError);
+            }
+          } else if (proxyResponse && proxyResponse.payment.status === 'failed') {
+            paymentStatus = 'FAILED';
+            console.log(`Proxy confirmed payment failed for ${transaction.transaction_request_id}`);
+          }
+        } catch (proxyError) {
+          console.error('Error querying M-Pesa via proxy:', proxyError);
+          // Continue with local status if proxy query fails
         }
-      } catch (e) {
-        console.error('Failed to update applications payment_status:', e);
       }
+      
+      return res.status(200).json({
+        success: true,
+        payment: {
+          status: paymentStatus,
+          amount: transaction.amount,
+          phoneNumber: transaction.phone,
+          mpesaReceiptNumber: transaction.receipt_number,
+          resultDesc: transaction.result_description,
+          resultCode: transaction.result_code,
+          timestamp: transaction.updated_at
+        }
+      });
+    } else {
+      console.log(`Payment status not found for ${reference}, still pending`);
+      
+      return res.status(200).json({
+        success: true,
+        payment: {
+          status: 'PENDING',
+          message: 'Payment is still being processed'
+        }
+      });
     }
-
-    return res.status(200).json({
-      success: true,
-      payment: {
-        status: paymentStatus,
-        amount: paymentAttempt?.amount ?? null,
-        phoneNumber: paymentAttempt?.phone_number ?? null,
-        mpesaReceiptNumber: receipt,
-        resultDesc: resultDesc,
-        resultCode: resultCode,
-        timestamp: new Date().toISOString()
-      }
-    });
   } catch (error) {
     console.error('Payment status check error:', error);
     

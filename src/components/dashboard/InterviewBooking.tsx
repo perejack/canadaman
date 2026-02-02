@@ -6,8 +6,6 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { SurveyAd, PopupSurveyAd } from '@/components/ui/survey-ad';
 import { useSurveyAds } from '@/hooks/useSurveyAds';
-import { parse } from 'date-fns';
-import { supabase } from '@/integrations/supabase/client';
 import { 
   ArrowLeft,
   Calendar,
@@ -65,8 +63,6 @@ const InterviewBooking: React.FC<InterviewBookingProps> = ({
   const [paymentStatus, setPaymentStatus] = useState<'PENDING' | 'SUCCESS' | 'FAILED' | null>(null);
   const [checkoutRequestId, setCheckoutRequestId] = useState('');
   const [paymentStatusInterval, setPaymentStatusInterval] = useState<NodeJS.Timeout | null>(null);
-  const [bookingId, setBookingId] = useState<string | null>(null);
-  const [isCreatingBooking, setIsCreatingBooking] = useState(false);
 
   // Scroll to top when step changes
   useEffect(() => {
@@ -110,11 +106,6 @@ const InterviewBooking: React.FC<InterviewBookingProps> = ({
       alert("Please enter a valid phone number");
       return;
     }
-
-    if (!bookingId) {
-      alert('Missing interview booking id. Please go back and reselect your interview details.');
-      return;
-    }
     
     setIsProcessingPayment(true);
     setPaymentStatus('PENDING');
@@ -128,71 +119,36 @@ const InterviewBooking: React.FC<InterviewBookingProps> = ({
         body: JSON.stringify({
           phoneNumber: `254${phoneNumber}`,
           amount: 250, // Updated amount
-          description: 'Account Verification Fee',
-          purpose: 'interview_booking',
-          interviewBookingId: bookingId,
+          description: 'Account Verification Fee'
         })
       });
-
-      const rawText = await response.text();
-      let result: any = null;
-
-      try {
-        result = rawText ? JSON.parse(rawText) : null;
-      } catch (e) {
-        result = null;
-      }
-
-      if (!response.ok) {
-        const serverMessage = result?.message || rawText || `HTTP ${response.status}`;
-        throw new Error(serverMessage);
-      }
-
-      if (result?.success) {
-        const requestId =
-          result?.data?.requestId ||
-          result?.data?.checkoutRequestId ||
-          result?.data?.externalReference;
-
-        if (!requestId) {
-          throw new Error('Payment initiated but missing checkout request id');
-        }
-
+      
+      const result = await response.json();
+      
+      if (result.success) {
+        const requestId = result.data.checkoutRequestId || result.data.externalReference;
         setCheckoutRequestId(requestId);
         
         alert("📱 STK push sent! Please check your phone and enter your M-Pesa PIN.");
         
         // Start polling for payment status
-        startPaymentStatusPolling(requestId, bookingId);
+        startPaymentStatusPolling(requestId);
       } else {
-        throw new Error(result?.message || 'Failed to initiate payment');
+        throw new Error(result.message || 'Failed to initiate payment');
       }
     } catch (error) {
       console.error('Payment error:', error);
-      const msg = error instanceof Error ? error.message : 'Failed to initiate payment. Please try again.';
-      alert(msg);
+      alert("Failed to initiate payment. Please try again.");
       setIsProcessingPayment(false);
       setPaymentStatus('FAILED');
     }
   };
 
-  const startPaymentStatusPolling = (requestId: string, bookingIdToConfirm: string | null) => {
+  const startPaymentStatusPolling = (requestId: string) => {
     const interval = setInterval(async () => {
       try {
         const response = await fetch(`/api/payment-status?reference=${requestId}`);
-        const rawText = await response.text();
-        let result: any = null;
-
-        try {
-          result = rawText ? JSON.parse(rawText) : null;
-        } catch (e) {
-          result = null;
-        }
-
-        if (!response.ok) {
-          const serverMessage = result?.message || rawText || `HTTP ${response.status}`;
-          throw new Error(serverMessage);
-        }
+        const result = await response.json();
         
         if (result.success && result.payment) {
           const status = result.payment.status;
@@ -203,21 +159,6 @@ const InterviewBooking: React.FC<InterviewBookingProps> = ({
             setPaymentStatusInterval(null);
             setIsProcessingPayment(false);
             alert("✅ Payment Successful! Your account has been verified and activated!");
-
-            if (bookingIdToConfirm) {
-              const { error: confirmError } = await supabase
-                .from('interview_bookings')
-                .update({
-                  status: 'confirmed',
-                  payment_reference: requestId,
-                })
-                .eq('id', bookingIdToConfirm);
-
-              if (confirmError) {
-                console.error('Failed to confirm interview booking:', confirmError);
-              }
-            }
-
             setStep('confirmation');
 
             // Show sequence of survey ads on payment success
@@ -270,10 +211,9 @@ const InterviewBooking: React.FC<InterviewBookingProps> = ({
           }
         }
       } catch (error) {
-        console.error('Error checking payment status:', error);
-        // Don't spam alerts every poll cycle; just log.
+        console.error('Status check error:', error);
       }
-    }, 5000); // Check every 5 seconds
+    }, 3000); // Check every 3 seconds
     
     setPaymentStatusInterval(interval);
     
@@ -328,55 +268,6 @@ const InterviewBooking: React.FC<InterviewBookingProps> = ({
     if (step === 'details') {
       setStep('schedule');
     } else if (step === 'schedule') {
-      if (bookingId || isCreatingBooking) {
-        return;
-      }
-
-      setIsCreatingBooking(true);
-      try {
-        const { data: authUserData, error: authUserError } = await supabase.auth.getUser();
-        if (authUserError) throw authUserError;
-        if (!authUserData.user) {
-          alert('Please sign in to book an interview.');
-          return;
-        }
-
-        const interviewAt = parse(
-          `${selectedDate} ${selectedTime}`,
-          'yyyy-MM-dd h:mm a',
-          new Date()
-        );
-
-        if (Number.isNaN(interviewAt.getTime())) {
-          alert('Invalid interview date/time. Please select again.');
-          return;
-        }
-
-        const { data: createdBooking, error: createBookingError } = await supabase
-          .from('interview_bookings')
-          .insert({
-            user_id: authUserData.user.id,
-            company,
-            position,
-            interview_type: interviewType,
-            interview_date: selectedDate,
-            interview_time: selectedTime,
-            interview_at: interviewAt.toISOString(),
-            status: 'pending_payment',
-          })
-          .select('id')
-          .single();
-
-        if (createBookingError) throw createBookingError;
-        setBookingId(createdBooking.id);
-      } catch (error) {
-        console.error('Failed to create interview booking:', error);
-        alert('Failed to save your interview booking. Please try again.');
-        return;
-      } finally {
-        setIsCreatingBooking(false);
-      }
-
       // Start review animation
       setShowReviewAnimation(true);
       setReviewProgress(0);
@@ -1002,7 +893,7 @@ const InterviewBooking: React.FC<InterviewBookingProps> = ({
 
               <Button
                 onClick={handleBooking}
-                disabled={!canProceed() || isProcessingPayment || isCreatingBooking}
+                disabled={!canProceed() || isProcessingPayment}
                 className={`${
                   canProceed() && !isProcessingPayment
                     ? step === 'payment'

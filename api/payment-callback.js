@@ -1,20 +1,9 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.APP_SUPABASE_URL;
-const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.APP_SUPABASE_ANON_KEY;
-
-if (!supabaseUrl || !supabaseKey) {
-  throw new Error('Missing Supabase config. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY for the Applications DB (or APP_SUPABASE_URL and APP_SUPABASE_ANON_KEY).');
-}
+const supabaseUrl = 'https://dbpbvoqfexofyxcexmmp.supabase.co'
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRicGJ2b3FmZXhvZnl4Y2V4bW1wIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkzNDc0NTMsImV4cCI6MjA3NDkyMzQ1M30.hGn7ux2xnRxseYCjiZfCLchgOEwIlIAUkdS6h7byZqc'
 
 const supabase = createClient(supabaseUrl, supabaseKey);
-
-function getApplicationsSupabaseClient() {
-  if (process.env.APP_SUPABASE_URL && process.env.APP_SUPABASE_SERVICE_ROLE_KEY) {
-    return createClient(process.env.APP_SUPABASE_URL, process.env.APP_SUPABASE_SERVICE_ROLE_KEY);
-  }
-  return supabase;
-}
 
 export default async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -36,8 +25,8 @@ export default async (req, res) => {
     console.log('Timestamp:', new Date().toISOString());
     console.log('Payload:', JSON.stringify(payload, null, 2));
 
-    if (!payload.TransactionID && !payload.CheckoutRequestID) {
-      console.error('Invalid webhook: Missing TransactionID and CheckoutRequestID');
+    if (!payload.TransactionID) {
+      console.error('Invalid webhook: Missing TransactionID');
       return res.status(400).json({
         status: 'error',
         message: 'Invalid webhook data'
@@ -89,47 +78,54 @@ export default async (req, res) => {
       }
     }
 
-    const appSupabase = getApplicationsSupabaseClient();
+    let transaction = null;
 
-    const newAttemptStatus = status === 'success' ? 'success' : status === 'cancelled' ? 'cancelled' : 'failed';
-
-    if (CheckoutRequestID) {
-      const { data: paymentAttempt, error: attemptFetchError } = await appSupabase
-        .from('payment_attempts')
-        .select('id, application_id')
-        .eq('checkout_request_id', CheckoutRequestID)
+    if (TransactionReference) {
+      const result = await supabase
+        .from('transactions')
+        .select('*')
+        .eq('reference', TransactionReference)
         .maybeSingle();
+      transaction = result.data;
+    }
 
-      if (attemptFetchError) {
-        console.error('payment_attempts fetch error:', attemptFetchError);
-      }
+    if (!transaction && Msisdn) {
+      const result = await supabase
+        .from('transactions')
+        .select('*')
+        .eq('phone', Msisdn)
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      transaction = result.data;
+    }
 
-      const { error: attemptUpdateError } = await appSupabase
-        .from('payment_attempts')
+    if (transaction) {
+      console.log('Found transaction to update:', transaction.id);
+
+      const { error: updateError } = await supabase
+        .from('transactions')
         .update({
-          status: newAttemptStatus,
+          status: status,
+          result_code: ResponseCode.toString(),
+          result_description: statusMessage,
+          receipt_number: TransactionReceipt !== 'N/A' ? TransactionReceipt : null,
+          merchant_request_id: MerchantRequestID,
+          checkout_request_id: CheckoutRequestID,
+          transaction_date: parsedDate,
+          transaction_id: TransactionID,
+          updated_at: new Date().toISOString(),
         })
-        .eq('checkout_request_id', CheckoutRequestID);
+        .eq('id', transaction.id);
 
-      if (attemptUpdateError) {
-        console.error('payment_attempts update error:', attemptUpdateError);
-      }
-
-      if (status === 'success') {
-        const applicationsUpdateQuery = appSupabase
-          .from('applications')
-          .update({ payment_status: 'paid', payment_reference: CheckoutRequestID });
-
-        const { error: applicationsUpdateError } = paymentAttempt?.application_id
-          ? await applicationsUpdateQuery.eq('id', paymentAttempt.application_id)
-          : await applicationsUpdateQuery.eq('payment_reference', CheckoutRequestID);
-
-        if (applicationsUpdateError) {
-          console.error('applications update error:', applicationsUpdateError);
-        }
+      if (updateError) {
+        console.error('Database update error:', updateError);
+      } else {
+        console.log('Transaction updated successfully:', TransactionID, 'Status:', status);
       }
     } else {
-      console.error('CheckoutRequestID missing - cannot update payment_attempts');
+      console.error('Transaction not found for webhook');
     }
 
     return res.status(200).json({
