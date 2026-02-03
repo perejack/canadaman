@@ -132,7 +132,7 @@ export default async (req, res) => {
         const appSupabase = getApplicationsSupabaseClient();
 
         const safeUserId = isUuid(userId) ? userId : null;
-        const safeApplicationId = isUuid(applicationId) ? applicationId : null;
+        let safeApplicationId = isUuid(applicationId) ? applicationId : null;
         let safeInterviewBookingId = isUuid(interviewBookingId) ? interviewBookingId : null;
 
         if (!safeInterviewBookingId && (purpose === 'interview_booking' || interviewCompany || interviewPosition)) {
@@ -142,10 +142,11 @@ export default async (req, res) => {
             console.error('interview_bookings insert error: interview_at is required for interview bookings');
           } else {
             try {
+              const bookingUserId = safeUserId || crypto.randomUUID();
               const { data: createdBooking, error: bookingInsertError } = await appSupabase
                 .from('interview_bookings')
                 .insert({
-                  user_id: safeUserId,
+                  user_id: bookingUserId,
                   company: interviewCompany || null,
                   position: interviewPosition || null,
                   interview_type: interviewType || null,
@@ -169,6 +170,7 @@ export default async (req, res) => {
           }
         }
 
+        const inferredPurpose = purpose || (safeApplicationId ? 'application' : safeInterviewBookingId ? 'interview_booking' : 'unknown');
         console.log('Inserting payment attempt:', {
           user_id: safeUserId,
           application_id: safeApplicationId,
