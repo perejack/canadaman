@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { randomUUID } from 'crypto';
 
 const supabaseUrl = process.env.APP_SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const supabaseKey =
@@ -132,7 +133,6 @@ export default async (req, res) => {
         const appSupabase = getApplicationsSupabaseClient();
 
         const safeUserId = isUuid(userId) ? userId : null;
-        console.log('userId validation:', { userId, isUuid: isUuid(userId), safeUserId });
         let safeApplicationId = isUuid(applicationId) ? applicationId : null;
         let safeInterviewBookingId = isUuid(interviewBookingId) ? interviewBookingId : null;
 
@@ -143,7 +143,7 @@ export default async (req, res) => {
             console.error('interview_bookings insert error: interview_at is required for interview bookings');
           } else {
             try {
-              const bookingUserId = safeUserId || crypto.randomUUID();
+              const bookingUserId = safeUserId || randomUUID();
               const { data: createdBooking, error: bookingInsertError } = await appSupabase
                 .from('interview_bookings')
                 .insert({
