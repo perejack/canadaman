@@ -142,18 +142,27 @@ export default async (req, res) => {
             console.error('interview_bookings insert error: interview_at is required for interview bookings');
           } else {
             try {
-              const { data: createdBooking, error: bookingInsertError } = await appSupabase
-                .from('interview_bookings')
-                .insert({
-                  user_id: safeUserId,
-                  company: interviewCompany || null,
-                  position: interviewPosition || null,
-                  interview_type: interviewType || null,
-                  interview_at: interviewAt,
-                  status: interviewStatus || 'pending_payment',
-                })
-                .select('id')
-                .single();
+              const insertBooking = async (userIdToInsert) => {
+                return await appSupabase
+                  .from('interview_bookings')
+                  .insert({
+                    user_id: userIdToInsert,
+                    company: interviewCompany || null,
+                    position: interviewPosition || null,
+                    interview_type: interviewType || 'video',
+                    interview_at: interviewAt,
+                    status: interviewStatus || 'pending',
+                  })
+                  .select('id')
+                  .single();
+              };
+
+              let { data: createdBooking, error: bookingInsertError } = await insertBooking(safeUserId);
+
+              if (bookingInsertError && bookingInsertError.code === '23503' && safeUserId) {
+                console.warn('interview_bookings insert FK violation for user_id; retrying with null user_id');
+                ({ data: createdBooking, error: bookingInsertError } = await insertBooking(null));
+              }
 
               if (bookingInsertError) {
                 console.error('interview_bookings insert error:', bookingInsertError);
