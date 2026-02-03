@@ -351,7 +351,7 @@ const InteractiveApplicationForm: React.FC<InteractiveApplicationFormProps> = ({
 
       const result = await response.json();
       if (!response.ok || !result?.success) {
-        throw new Error(result?.message || 'Failed to submit application');
+        throw new Error(result?.error || result?.message || 'Failed to submit application');
       }
 
       setSubmittedApplicationId(result?.data?.applicationId || null);

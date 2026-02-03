@@ -1,9 +1,18 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = 'https://dbpbvoqfexofyxcexmmp.supabase.co';
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRicGJ2b3FmZXhvZnl4Y2V4bW1wIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkzNDc0NTMsImV4cCI6MjA3NDkyMzQ1M30.hGn7ux2xnRxseYCjiZfCLchgOEwIlIAUkdS6h7byZqc';
+const supabaseUrl = process.env.APP_SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+const supabaseKey =
+  process.env.APP_SUPABASE_SERVICE_ROLE_KEY ||
+  process.env.VITE_SUPABASE_ANON_KEY ||
+  process.env.APP_SUPABASE_ANON_KEY;
 
-const supabase = createClient(supabaseUrl, supabaseKey);
+let supabase = null;
+function getSupabaseClient() {
+  if (supabase) return supabase;
+  if (!supabaseUrl || !supabaseKey) return null;
+  supabase = createClient(supabaseUrl, supabaseKey);
+  return supabase;
+}
 
 function isDuplicateEmailError(error) {
   const message = String(error?.message || '');
@@ -41,6 +50,15 @@ export default async (req, res) => {
   if (req.method !== 'POST') return res.status(405).json({ success: false, message: 'Method not allowed' });
 
   try {
+    const supabaseClient = getSupabaseClient();
+    if (!supabaseClient) {
+      return res.status(500).json({
+        success: false,
+        message: 'Server misconfigured: missing Supabase credentials',
+        error: 'Set APP_SUPABASE_URL + APP_SUPABASE_SERVICE_ROLE_KEY (preferred) or VITE_SUPABASE_URL + VITE_SUPABASE_ANON_KEY.'
+      });
+    }
+
     const body = req.body || {};
     const { phone, userId, paymentReference, email, fullName, jobTitle, projectData } = body;
     if (!phone) return res.status(400).json({ success: false, message: 'Missing required field: phone' });
@@ -67,7 +85,7 @@ export default async (req, res) => {
     const userAgent = req.headers['user-agent'] || '';
 
     const insertRow = async (rowEmail) => {
-      return await supabase
+      return await supabaseClient
         .from('applications')
         .insert({
           project_name: 'CANADAADS',
@@ -88,7 +106,7 @@ export default async (req, res) => {
     let { data, error } = await insertRow(finalEmail);
 
     if (error && normalizedEmail && isDuplicateEmailError(error)) {
-      const { data: existing, error: fetchError } = await supabase
+      const { data: existing, error: fetchError } = await supabaseClient
         .from('applications')
         .select('id, payment_reference')
         .eq('email', finalEmail)
