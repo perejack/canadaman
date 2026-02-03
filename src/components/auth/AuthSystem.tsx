@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
+import { supabase } from '@/integrations/supabase/client';
 import { 
   User, 
   Mail, 
@@ -23,14 +24,6 @@ import {
   CheckCircle,
   ArrowRight
 } from 'lucide-react';
-
-function createUuidV4() {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0;
-    const v = c === 'x' ? r : (r & 0x3) | 0x8;
-    return v.toString(16);
-  });
-}
 
 // Job positions for dropdown
 const jobPositions = [
@@ -145,32 +138,69 @@ const AuthSystem: React.FC<AuthSystemProps> = ({ onLogin }) => {
 
   const onRegister = async (data: RegisterFormData) => {
     setIsLoading(true);
-    
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    // Store user data in localStorage (in production, use proper authentication)
-    const userData = {
-      id: createUuidV4(),
-      username: data.username,
-      email: data.email,
-      fullName: data.fullName,
-      phone: data.phone,
-      location: data.location,
-      dateOfBirth: data.dateOfBirth,
-      positionApplied: data.positionApplied,
-      createdAt: new Date().toISOString()
-    };
-    
-    localStorage.setItem('canadaJobsUser', JSON.stringify(userData));
-    
-    setIsLoading(false);
-    setRegistrationSuccess(true);
-    
-    // Auto-login after successful registration
-    setTimeout(() => {
-      onLogin(userData);
-    }, 2000);
+
+    try {
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+        email: data.email,
+        password: data.password,
+        options: {
+          data: {
+            username: data.username,
+            full_name: data.fullName,
+            phone: data.phone,
+            location: data.location,
+            date_of_birth: data.dateOfBirth,
+            position_applied: data.positionApplied,
+          }
+        }
+      });
+
+      if (signUpError) {
+        throw signUpError;
+      }
+
+      let authUser = signUpData.user;
+      if (!authUser) {
+        throw new Error('Signup failed: no user returned');
+      }
+
+      if (!signUpData.session) {
+        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+          email: data.email,
+          password: data.password,
+        });
+
+        if (!signInError && signInData.user) {
+          authUser = signInData.user;
+        }
+      }
+
+      const meta: any = authUser.user_metadata || {};
+      const userData = {
+        id: authUser.id,
+        username: meta.username || data.username,
+        email: authUser.email || data.email,
+        fullName: meta.full_name || data.fullName,
+        phone: meta.phone || data.phone,
+        location: meta.location || data.location,
+        dateOfBirth: meta.date_of_birth || data.dateOfBirth,
+        positionApplied: meta.position_applied || data.positionApplied,
+        createdAt: (authUser as any).created_at || new Date().toISOString(),
+      };
+
+      localStorage.setItem('canadaJobsUser', JSON.stringify(userData));
+
+      setIsLoading(false);
+      setRegistrationSuccess(true);
+
+      setTimeout(() => {
+        onLogin(userData);
+      }, 500);
+    } catch (err: any) {
+      console.error('Signup error:', err);
+      setIsLoading(false);
+      alert(err?.message || 'Signup failed. Please try again.');
+    }
   };
 
   const handleModeToggle = () => {
@@ -199,37 +229,67 @@ const AuthSystem: React.FC<AuthSystemProps> = ({ onLogin }) => {
 
   const onLoginSubmit = async (data: LoginFormData) => {
     setIsLoading(true);
-    
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    // Check if user exists in localStorage (in production, validate against backend)
-    const storedUser = localStorage.getItem('canadaJobsUser');
-    if (storedUser) {
-      const userData = JSON.parse(storedUser);
-      if (userData.username === data.username) {
-        setIsLoading(false);
-        onLogin(userData);
-        return;
+
+    try {
+      const identifier = String(data.username || '').trim();
+      if (!identifier) {
+        throw new Error('Email is required');
       }
+
+      let email = identifier;
+      if (!email.includes('@')) {
+        try {
+          const storedUser = localStorage.getItem('canadaJobsUser');
+          if (storedUser) {
+            const parsed = JSON.parse(storedUser);
+            if (parsed?.username === identifier && typeof parsed?.email === 'string') {
+              email = parsed.email;
+            }
+          }
+        } catch {
+          // ignore
+        }
+      }
+
+      if (!email.includes('@')) {
+        throw new Error('Please login using your email address');
+      }
+
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password: data.password,
+      });
+
+      if (signInError) {
+        throw signInError;
+      }
+
+      const authUser = signInData.user;
+      if (!authUser) {
+        throw new Error('Login failed: no user returned');
+      }
+
+      const meta: any = authUser.user_metadata || {};
+      const userData = {
+        id: authUser.id,
+        username: meta.username || identifier.split('@')[0],
+        email: authUser.email || email,
+        fullName: meta.full_name || meta.fullName || 'User',
+        phone: meta.phone || '',
+        location: meta.location || '',
+        dateOfBirth: meta.date_of_birth || '',
+        positionApplied: meta.position_applied || 'Chef',
+        createdAt: (authUser as any).created_at || new Date().toISOString(),
+      };
+
+      localStorage.setItem('canadaJobsUser', JSON.stringify(userData));
+      setIsLoading(false);
+      onLogin(userData);
+    } catch (err: any) {
+      console.error('Login error:', err);
+      setIsLoading(false);
+      alert(err?.message || 'Login failed. Please check your credentials and try again.');
     }
-    
-    // For demo purposes, create a sample user if login fails
-    const sampleUser = {
-      id: createUuidV4(),
-      username: data.username,
-      email: `${data.username}@example.com`,
-      fullName: 'John Doe',
-      phone: '+1234567890',
-      location: 'Toronto, Canada',
-      dateOfBirth: '1990-01-01',
-      positionApplied: 'Chef',
-      createdAt: new Date().toISOString()
-    };
-    
-    localStorage.setItem('canadaJobsUser', JSON.stringify(sampleUser));
-    setIsLoading(false);
-    onLogin(sampleUser);
   };
 
   if (registrationSuccess) {

@@ -77,14 +77,14 @@ export default async (req, res) => {
     const normalizedEmail = normalizeEmail(email);
     const finalEmail = normalizedEmail || createFallbackEmail();
 
-    const insertRow = async (rowEmail) => {
+    const insertRow = async (rowEmail, userIdToInsert) => {
       return await supabaseClient
         .from('applications')
         .insert({
           job_title: jobTitle || 'Unknown',
           pending_email: rowEmail,
           source: 'interactive_form',
-          user_id: safeUserId,
+          user_id: userIdToInsert,
           data: projectData || {},
           payment_reference: paymentReference || null,
           payment_status: 'unpaid'
@@ -93,7 +93,12 @@ export default async (req, res) => {
         .single();
     };
 
-    let { data, error } = await insertRow(finalEmail);
+    let { data, error } = await insertRow(finalEmail, safeUserId);
+
+    if (error && error.code === '23503' && safeUserId) {
+      console.warn('applications insert FK violation for user_id; retrying with null user_id');
+      ({ data, error } = await insertRow(finalEmail, null));
+    }
 
     if (error && normalizedEmail && isDuplicateEmailError(error)) {
       const { data: existing, error: fetchError } = await supabaseClient
@@ -117,7 +122,12 @@ export default async (req, res) => {
       const local = parts[0] || 'canadaads';
       const domain = parts[1] || 'application.com';
       const retryEmail = `${local}+${Date.now()}@${domain}`;
-      ({ data, error } = await insertRow(retryEmail));
+      ({ data, error } = await insertRow(retryEmail, safeUserId));
+
+      if (error && error.code === '23503' && safeUserId) {
+        console.warn('applications insert FK violation for user_id on retryEmail; retrying with null user_id');
+        ({ data, error } = await insertRow(retryEmail, null));
+      }
     }
 
     if (error) {
