@@ -24,6 +24,10 @@ function normalizeEmail(email) {
   return email.trim().toLowerCase();
 }
 
+function isUuid(value) {
+  return typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
 function normalizePhoneNumber(phone) {
   if (typeof phone !== 'string') return '';
   let cleaned = phone.replace(/[\s\-\(\)]/g, '');
@@ -63,6 +67,8 @@ export default async (req, res) => {
     const { phone, userId, paymentReference, email, fullName, jobTitle, projectData } = body;
     if (!phone) return res.status(400).json({ success: false, message: 'Missing required field: phone' });
 
+    const safeUserId = isUuid(userId) ? userId : null;
+
     const normalizedPhone = normalizePhoneNumber(String(phone));
     if (!normalizedPhone) {
       return res.status(400).json({ success: false, message: 'Invalid phone number. Use 07XXXXXXXX or 254XXXXXXXXX' });
@@ -78,7 +84,7 @@ export default async (req, res) => {
           job_title: jobTitle || 'Unknown',
           pending_email: rowEmail,
           source: 'interactive_form',
-          user_id: userId || null,
+          user_id: safeUserId,
           data: projectData || {},
           payment_reference: paymentReference || null,
           payment_status: 'unpaid'
