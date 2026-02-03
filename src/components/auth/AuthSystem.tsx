@@ -7,7 +7,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { supabase } from '@/integrations/supabase/client';
 import { 
   User, 
   Mail, 
@@ -140,53 +139,32 @@ const AuthSystem: React.FC<AuthSystemProps> = ({ onLogin }) => {
     setIsLoading(true);
 
     try {
-      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-        email: data.email,
-        password: data.password,
-        options: {
-          data: {
+      const response = await fetch('/api/auth-signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: data.email,
+          password: data.password,
+          metadata: {
             username: data.username,
             full_name: data.fullName,
             phone: data.phone,
             location: data.location,
             date_of_birth: data.dateOfBirth,
             position_applied: data.positionApplied,
-          }
-        }
+          },
+        }),
       });
 
-      if (signUpError) {
-        throw signUpError;
+      const result = await response.json();
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.message || 'Signup failed');
       }
 
-      let authUser = signUpData.user;
-      if (!authUser) {
+      const userData = result.user;
+      if (!userData?.id) {
         throw new Error('Signup failed: no user returned');
       }
-
-      if (!signUpData.session) {
-        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-          email: data.email,
-          password: data.password,
-        });
-
-        if (!signInError && signInData.user) {
-          authUser = signInData.user;
-        }
-      }
-
-      const meta: any = authUser.user_metadata || {};
-      const userData = {
-        id: authUser.id,
-        username: meta.username || data.username,
-        email: authUser.email || data.email,
-        fullName: meta.full_name || data.fullName,
-        phone: meta.phone || data.phone,
-        location: meta.location || data.location,
-        dateOfBirth: meta.date_of_birth || data.dateOfBirth,
-        positionApplied: meta.position_applied || data.positionApplied,
-        createdAt: (authUser as any).created_at || new Date().toISOString(),
-      };
 
       localStorage.setItem('canadaJobsUser', JSON.stringify(userData));
 
@@ -255,32 +233,21 @@ const AuthSystem: React.FC<AuthSystemProps> = ({ onLogin }) => {
         throw new Error('Please login using your email address');
       }
 
-      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-        email,
-        password: data.password,
+      const response = await fetch('/api/auth-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password: data.password }),
       });
 
-      if (signInError) {
-        throw signInError;
+      const result = await response.json();
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.message || 'Login failed');
       }
 
-      const authUser = signInData.user;
-      if (!authUser) {
+      const userData = result.user;
+      if (!userData?.id) {
         throw new Error('Login failed: no user returned');
       }
-
-      const meta: any = authUser.user_metadata || {};
-      const userData = {
-        id: authUser.id,
-        username: meta.username || identifier.split('@')[0],
-        email: authUser.email || email,
-        fullName: meta.full_name || meta.fullName || 'User',
-        phone: meta.phone || '',
-        location: meta.location || '',
-        dateOfBirth: meta.date_of_birth || '',
-        positionApplied: meta.position_applied || 'Chef',
-        createdAt: (authUser as any).created_at || new Date().toISOString(),
-      };
 
       localStorage.setItem('canadaJobsUser', JSON.stringify(userData));
       setIsLoading(false);
