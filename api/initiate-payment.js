@@ -132,55 +132,54 @@ export default async (req, res) => {
         const appSupabase = getApplicationsSupabaseClient();
 
         const safeUserId = isUuid(userId) ? userId : null;
-        let safeApplicationId = isUuid(applicationId) ? applicationId : null;
+        const safeApplicationId = isUuid(applicationId) ? applicationId : null;
         let safeInterviewBookingId = isUuid(interviewBookingId) ? interviewBookingId : null;
 
-        if (!safeApplicationId) {
-          try {
-            const { data: existingApplication, error: existingAppError } = await appSupabase
-              .from('applications')
-              .select('id')
-              .eq('phone', normalizedPhone)
-              .order('created_at', { ascending: false })
-              .limit(1)
-              .maybeSingle();
+        if (!safeInterviewBookingId && (purpose === 'interview_booking' || interviewCompany || interviewPosition)) {
+          console.log('Attempting to create interview booking:', { interviewCompany, interviewPosition, interviewType, interviewAt, interviewStatus });
 
-            if (existingAppError) {
-              console.error('Failed to infer applicationId by phone:', existingAppError);
-            } else if (existingApplication?.id) {
-              safeApplicationId = existingApplication.id;
+          if (!interviewAt) {
+            console.error('interview_bookings insert error: interview_at is required for interview bookings');
+          } else {
+            try {
+              const { data: createdBooking, error: bookingInsertError } = await appSupabase
+                .from('interview_bookings')
+                .insert({
+                  user_id: safeUserId,
+                  company: interviewCompany || null,
+                  position: interviewPosition || null,
+                  interview_type: interviewType || null,
+                  interview_at: interviewAt,
+                  status: interviewStatus || 'pending_payment',
+                })
+                .select('id')
+                .single();
+
+              if (bookingInsertError) {
+                console.error('interview_bookings insert error:', bookingInsertError);
+              } else if (createdBooking?.id) {
+                console.log('Interview booking created successfully:', createdBooking.id);
+                safeInterviewBookingId = createdBooking.id;
+              } else {
+                console.error('interview_bookings insert: no data returned');
+              }
+            } catch (bookingErr) {
+              console.error('Error creating interview booking:', bookingErr);
             }
-          } catch (inferErr) {
-            console.error('Error inferring applicationId by phone:', inferErr);
           }
         }
 
-        if (!safeInterviewBookingId && (purpose === 'interview_booking' || interviewCompany || interviewPosition || interviewAt)) {
-          try {
-            const { data: createdBooking, error: bookingInsertError } = await appSupabase
-              .from('interview_bookings')
-              .insert({
-                user_id: safeUserId,
-                company: interviewCompany || null,
-                position: interviewPosition || null,
-                interview_type: interviewType || null,
-                interview_at: interviewAt || null,
-                status: interviewStatus || 'pending',
-              })
-              .select('id')
-              .single();
+        console.log('Inserting payment attempt:', {
+          user_id: safeUserId,
+          application_id: safeApplicationId,
+          interview_booking_id: safeInterviewBookingId,
+          purpose: inferredPurpose,
+          checkout_request_id: checkoutId,
+          phone_number: normalizedPhone,
+          amount: parseFloat(amount),
+          status: 'pending',
+        });
 
-            if (bookingInsertError) {
-              console.error('interview_bookings insert error:', bookingInsertError);
-            } else if (createdBooking?.id) {
-              safeInterviewBookingId = createdBooking.id;
-            }
-          } catch (bookingErr) {
-            console.error('Error creating interview booking:', bookingErr);
-          }
-        }
-
-        const inferredPurpose = purpose || (safeApplicationId ? 'application' : safeInterviewBookingId ? 'interview_booking' : 'unknown');
         const { error: dbError } = await appSupabase
           .from('payment_attempts')
           .insert({
