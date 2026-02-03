@@ -24,6 +24,14 @@ import {
   ArrowRight
 } from 'lucide-react';
 
+function createUuidV4() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
 // Job positions for dropdown
 const jobPositions = [
   'Babysitter', 'Bartender', 'Caretaker & Building Superintendent', 'Casino Worker',
@@ -143,7 +151,7 @@ const AuthSystem: React.FC<AuthSystemProps> = ({ onLogin }) => {
     
     // Store user data in localStorage (in production, use proper authentication)
     const userData = {
-      id: `user_${Date.now()}`,
+      id: createUuidV4(),
       username: data.username,
       email: data.email,
       fullName: data.fullName,
@@ -208,7 +216,7 @@ const AuthSystem: React.FC<AuthSystemProps> = ({ onLogin }) => {
     
     // For demo purposes, create a sample user if login fails
     const sampleUser = {
-      id: `user_${Date.now()}`,
+      id: createUuidV4(),
       username: data.username,
       email: `${data.username}@example.com`,
       fullName: 'John Doe',
