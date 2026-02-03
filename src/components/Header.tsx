@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Menu, X, Leaf } from 'lucide-react';
 import { useScrollToTop, scrollToTop, scrollToElement } from '@/hooks/useScrollToTop';
 
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const navigate = useNavigate();
   
   // Use the scroll to top hook for route changes
   useScrollToTop();
@@ -34,6 +35,23 @@ const Header = () => {
     
     // Close mobile menu if open
     setIsMenuOpen(false);
+  };
+
+  const handleLoginClick = () => {
+    try {
+      const raw = localStorage.getItem('canadaJobsApplicationData');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed?.redirectToSignup) {
+          localStorage.removeItem('canadaJobsApplicationData');
+        }
+      }
+    } catch {
+      // ignore
+    }
+
+    setIsMenuOpen(false);
+    navigate('/account');
   };
 
   return (
@@ -71,7 +89,7 @@ const Header = () => {
 
           {/* CTA Button */}
           <div className="hidden md:flex items-center space-x-4">
-            <Button variant="outline" size="sm" className="btn-outline-canadian">
+            <Button variant="outline" size="sm" className="btn-outline-canadian" onClick={handleLoginClick}>
               Login
             </Button>
             <Link to="/apply">
@@ -109,7 +127,7 @@ const Header = () => {
                 </a>
               ))}
               <div className="flex flex-col space-y-3 pt-4">
-                <Button variant="outline" size="sm" className="btn-outline-canadian">
+                <Button variant="outline" size="sm" className="btn-outline-canadian" onClick={handleLoginClick}>
                   Login
                 </Button>
                 <Link to="/apply">

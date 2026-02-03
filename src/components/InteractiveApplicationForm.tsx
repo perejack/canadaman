@@ -1362,7 +1362,7 @@ const SuccessPage = ({ jobTitle, applicationId, email, phone }: { jobTitle: stri
               window.location.href = '/account';
             }}
           >
-            Click Here to Create Account <ArrowRight className="w-4 h-4 ml-2" />
+            Click Here to Access Immigration Account and Complete Application <ArrowRight className="w-4 h-4 ml-2" />
           </Button>
         </div>
       </div>
