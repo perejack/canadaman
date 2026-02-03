@@ -132,6 +132,7 @@ export default async (req, res) => {
         const appSupabase = getApplicationsSupabaseClient();
 
         const safeUserId = isUuid(userId) ? userId : null;
+        console.log('userId validation:', { userId, isUuid: isUuid(userId), safeUserId });
         let safeApplicationId = isUuid(applicationId) ? applicationId : null;
         let safeInterviewBookingId = isUuid(interviewBookingId) ? interviewBookingId : null;
 
