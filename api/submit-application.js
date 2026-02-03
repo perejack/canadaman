@@ -70,22 +70,18 @@ export default async (req, res) => {
 
     const normalizedEmail = normalizeEmail(email);
     const finalEmail = normalizedEmail || createFallbackEmail();
-    const finalFullName = (typeof fullName === 'string' && fullName.trim()) ? fullName.trim() : (userId || 'Canada Ads User');
-
-    const ipAddress = req.headers['x-forwarded-for'] || req.headers['x-real-ip'] || req.socket?.remoteAddress || '';
-    const userAgent = req.headers['user-agent'] || '';
 
     const insertRow = async (rowEmail) => {
       return await supabaseClient
         .from('applications')
         .insert({
-          first_name: projectData?.first_name || '',
-          last_name: projectData?.last_name || '',
-          email: rowEmail,
-          phone: normalizedPhone,
-          date_of_birth: projectData?.date_of_birth || null,
-          id_number: projectData?.id_number || null,
-          position_applied: jobTitle || 'Unknown'
+          job_title: jobTitle || 'Unknown',
+          pending_email: rowEmail,
+          source: 'interactive_form',
+          user_id: userId || null,
+          data: projectData || {},
+          payment_reference: paymentReference || null,
+          payment_status: 'unpaid'
         })
         .select()
         .single();
@@ -97,7 +93,7 @@ export default async (req, res) => {
       const { data: existing, error: fetchError } = await supabaseClient
         .from('applications')
         .select('id, payment_reference')
-        .eq('email', finalEmail)
+        .eq('pending_email', finalEmail)
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
