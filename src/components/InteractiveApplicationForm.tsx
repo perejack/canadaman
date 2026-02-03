@@ -217,6 +217,9 @@ const InteractiveApplicationForm: React.FC<InteractiveApplicationFormProps> = ({
   const [currentStep, setCurrentStep] = useState(0);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [submittedApplicationId, setSubmittedApplicationId] = useState<string | null>(null);
+  const [submittedEmail, setSubmittedEmail] = useState<string | null>(null);
+  const [submittedPhone, setSubmittedPhone] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
   const [encouragementMessage, setEncouragementMessage] = useState('');
 
@@ -299,27 +302,73 @@ const InteractiveApplicationForm: React.FC<InteractiveApplicationFormProps> = ({
   const onSubmit = async (data: ApplicationFormData) => {
     setIsProcessing(true);
     
-    // Simulate processing with realistic steps
-    const processingSteps = [
-      "Analyzing your qualifications...",
-      "Matching with Canadian employers...",
-      "Checking visa sponsorship eligibility...",
-      "Reviewing salary expectations...",
-      "Connecting with hiring managers...",
-      "Finalizing your application..."
-    ];
+    try {
+      const userId = (() => {
+        try {
+          const raw = localStorage.getItem('canadaJobsUser');
+          if (!raw) return null;
+          const parsed = JSON.parse(raw);
+          return parsed?.id || null;
+        } catch {
+          return null;
+        }
+      })();
 
-    for (let i = 0; i < processingSteps.length; i++) {
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      setProgress(((i + 1) / processingSteps.length) * 100);
+      const payload = {
+        phone: data.phone,
+        email: data.email,
+        fullName: `${data.first_name} ${data.last_name}`.trim(),
+        jobTitle,
+        userId,
+        projectData: {
+          first_name: data.first_name,
+          last_name: data.last_name,
+          date_of_birth: data.date_of_birth,
+          id_number: data.id_number,
+          location: data.location,
+          marital_status: data.marital_status,
+          experience_years: data.experience_years,
+          education_level: data.education_level,
+          field_of_study: data.field_of_study,
+          institution: data.institution,
+          graduation_year: data.graduation_year,
+          job_specific_1: data.job_specific_1,
+          job_specific_2: data.job_specific_2,
+          job_specific_3: data.job_specific_3,
+          motivation: data.motivation,
+          stay_duration: data.stay_duration,
+          availability: data.availability,
+          passport_status: data.passport_status,
+          preferred_hours: data.preferred_hours,
+        }
+      };
+
+      const response = await fetch('/api/submit-application', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const result = await response.json();
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.message || 'Failed to submit application');
+      }
+
+      setSubmittedApplicationId(result?.data?.applicationId || null);
+      setSubmittedEmail(data.email || null);
+      setSubmittedPhone(data.phone || null);
+
+      setIsProcessing(false);
+      setShowSuccess(true);
+    } catch (err: any) {
+      console.error('Submit application error:', err);
+      setIsProcessing(false);
+      alert(err?.message || 'Failed to submit application. Please try again.');
     }
-
-    setIsProcessing(false);
-    setShowSuccess(true);
   };
 
   if (showSuccess) {
-    return <SuccessPage jobTitle={jobTitle} />;
+    return <SuccessPage jobTitle={jobTitle} applicationId={submittedApplicationId} email={submittedEmail} phone={submittedPhone} />;
   }
 
   if (isProcessing) {
@@ -1151,7 +1200,7 @@ const ProcessingAnimation = () => {
   );
 };
 
-const SuccessPage = ({ jobTitle }: { jobTitle: string }) => {
+const SuccessPage = ({ jobTitle, applicationId, email, phone }: { jobTitle: string; applicationId: string | null; email: string | null; phone: string | null }) => {
   const companies = [
     { 
       name: "Tim Hortons", 
@@ -1304,6 +1353,9 @@ const SuccessPage = ({ jobTitle }: { jobTitle: string }) => {
               // Store application data for pre-filling the signup form
               const applicationData = {
                 jobTitle,
+                applicationId,
+                email,
+                phone,
                 redirectToSignup: true
               };
               localStorage.setItem('canadaJobsApplicationData', JSON.stringify(applicationData));

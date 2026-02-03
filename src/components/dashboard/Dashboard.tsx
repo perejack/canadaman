@@ -142,6 +142,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
         logo={selectedCompany.logo}
         salary={selectedCompany.salary}
         location={selectedCompany.location}
+        userId={user?.id}
       />
     );
   }
@@ -540,6 +541,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
         isOpen={showUpgradeModal}
         onClose={() => setShowUpgradeModal(false)}
         onUpgradeSuccess={handleUpgradeSuccess}
+        userId={user?.id}
       />
     </div>
   );

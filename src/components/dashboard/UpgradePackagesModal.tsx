@@ -25,12 +25,14 @@ interface UpgradePackagesModalProps {
   isOpen: boolean;
   onClose: () => void;
   onUpgradeSuccess: (packageType: 'premium' | 'platinum') => void;
+  userId?: string;
 }
 
 const UpgradePackagesModal: React.FC<UpgradePackagesModalProps> = ({ 
   isOpen, 
   onClose, 
-  onUpgradeSuccess 
+  onUpgradeSuccess,
+  userId,
 }) => {
   const { popupVisible, currentAdIndex, showPopupAd, hidePopupAd, showAdSequence } = useSurveyAds();
   const [selectedPackage, setSelectedPackage] = useState<'premium' | 'platinum' | null>(null);
@@ -99,7 +101,9 @@ const UpgradePackagesModal: React.FC<UpgradePackagesModalProps> = ({
         body: JSON.stringify({
           phoneNumber: `254${phoneNumber}`,
           amount: packages[packageType].price,
-          description: `${packages[packageType].name} Upgrade`
+          description: `${packages[packageType].name} Upgrade`,
+          purpose: 'application',
+          userId: userId || null,
         })
       });
       

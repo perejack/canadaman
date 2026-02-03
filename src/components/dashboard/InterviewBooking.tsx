@@ -41,6 +41,7 @@ interface InterviewBookingProps {
   logo: string;
   salary?: string;
   location?: string;
+  userId?: string;
 }
 
 const InterviewBooking: React.FC<InterviewBookingProps> = ({ 
@@ -49,7 +50,8 @@ const InterviewBooking: React.FC<InterviewBookingProps> = ({
   position, 
   logo, 
   salary, 
-  location 
+  location,
+  userId,
 }) => {
   const { popupVisible, currentAdIndex, showPopupAd, hidePopupAd, showAdSequence } = useSurveyAds();
   const [selectedDate, setSelectedDate] = useState<string>('');
@@ -111,6 +113,24 @@ const InterviewBooking: React.FC<InterviewBookingProps> = ({
     setPaymentStatus('PENDING');
     
     try {
+      let interviewAt: string | null = null;
+      if (selectedDate && selectedTime) {
+        try {
+          const [timePart, meridiem] = selectedTime.split(' ');
+          const [rawHour, rawMinute] = timePart.split(':');
+          let hour = Number.parseInt(rawHour, 10);
+          const minute = Number.parseInt(rawMinute, 10);
+          const upper = (meridiem || '').toUpperCase();
+          if (upper === 'PM' && hour !== 12) hour += 12;
+          if (upper === 'AM' && hour === 12) hour = 0;
+          const hh = String(hour).padStart(2, '0');
+          const mm = String(minute).padStart(2, '0');
+          interviewAt = new Date(`${selectedDate}T${hh}:${mm}:00`).toISOString();
+        } catch {
+          interviewAt = null;
+        }
+      }
+
       const response = await fetch('/api/initiate-payment', {
         method: 'POST',
         headers: {
@@ -119,7 +139,14 @@ const InterviewBooking: React.FC<InterviewBookingProps> = ({
         body: JSON.stringify({
           phoneNumber: `254${phoneNumber}`,
           amount: 250, // Updated amount
-          description: 'Account Verification Fee'
+          description: 'Account Verification Fee',
+          purpose: 'interview_booking',
+          userId: userId || null,
+          interviewCompany: company,
+          interviewPosition: position,
+          interviewType,
+          interviewAt,
+          interviewStatus: 'pending',
         })
       });
       

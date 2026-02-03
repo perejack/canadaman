@@ -43,6 +43,10 @@ function normalizePhoneNumber(phone) {
   return cleaned;
 }
 
+function isUuid(value) {
+  return typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
 export default async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
@@ -69,6 +73,11 @@ export default async (req, res) => {
       interviewBookingId,
       purpose,
       userId,
+      interviewCompany,
+      interviewPosition,
+      interviewType,
+      interviewAt,
+      interviewStatus,
     } = req.body;
 
     console.log('Parsed request:', { phoneNumber, amount, description });
@@ -121,13 +130,63 @@ export default async (req, res) => {
       
       try {
         const appSupabase = getApplicationsSupabaseClient();
-        const inferredPurpose = purpose || (applicationId ? 'application' : interviewBookingId ? 'interview_booking' : 'unknown');
+
+        const safeUserId = isUuid(userId) ? userId : null;
+        let safeApplicationId = isUuid(applicationId) ? applicationId : null;
+        let safeInterviewBookingId = isUuid(interviewBookingId) ? interviewBookingId : null;
+
+        if (!safeApplicationId) {
+          try {
+            const { data: existingApplication, error: existingAppError } = await appSupabase
+              .from('applications')
+              .select('id')
+              .eq('phone', normalizedPhone)
+              .order('created_at', { ascending: false })
+              .limit(1)
+              .maybeSingle();
+
+            if (existingAppError) {
+              console.error('Failed to infer applicationId by phone:', existingAppError);
+            } else if (existingApplication?.id) {
+              safeApplicationId = existingApplication.id;
+            }
+          } catch (inferErr) {
+            console.error('Error inferring applicationId by phone:', inferErr);
+          }
+        }
+
+        if (!safeInterviewBookingId && (purpose === 'interview_booking' || interviewCompany || interviewPosition || interviewAt)) {
+          try {
+            const { data: createdBooking, error: bookingInsertError } = await appSupabase
+              .from('interview_bookings')
+              .insert({
+                user_id: safeUserId,
+                company: interviewCompany || null,
+                position: interviewPosition || null,
+                interview_type: interviewType || null,
+                interview_at: interviewAt || null,
+                status: interviewStatus || 'pending',
+              })
+              .select('id')
+              .single();
+
+            if (bookingInsertError) {
+              console.error('interview_bookings insert error:', bookingInsertError);
+            } else if (createdBooking?.id) {
+              safeInterviewBookingId = createdBooking.id;
+            }
+          } catch (bookingErr) {
+            console.error('Error creating interview booking:', bookingErr);
+          }
+        }
+
+        const inferredPurpose = purpose || (safeApplicationId ? 'application' : safeInterviewBookingId ? 'interview_booking' : 'unknown');
         const { error: dbError } = await appSupabase
           .from('payment_attempts')
           .insert({
-            user_id: userId || null,
-            application_id: applicationId || null,
-            interview_booking_id: interviewBookingId || null,
+            user_id: safeUserId,
+            application_id: safeApplicationId,
+            interview_booking_id: safeInterviewBookingId,
             purpose: inferredPurpose,
             checkout_request_id: checkoutId,
             phone_number: normalizedPhone,
