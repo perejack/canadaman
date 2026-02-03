@@ -113,6 +113,17 @@ const InterviewBooking: React.FC<InterviewBookingProps> = ({
     setPaymentStatus('PENDING');
     
     try {
+      let applicationId: string | null = null;
+      try {
+        const raw = localStorage.getItem('canadaJobsApplicationData');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          applicationId = typeof parsed?.applicationId === 'string' ? parsed.applicationId : null;
+        }
+      } catch {
+        applicationId = null;
+      }
+
       let interviewAt: string | null = null;
       if (selectedDate && selectedTime) {
         try {
@@ -141,6 +152,7 @@ const InterviewBooking: React.FC<InterviewBookingProps> = ({
           amount: 10, // Updated amount
           description: 'Account Verification Fee',
           purpose: 'interview_booking',
+          applicationId,
           userId: userId || null,
           interviewCompany: company,
           interviewPosition: position,

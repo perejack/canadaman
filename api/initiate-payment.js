@@ -1,5 +1,4 @@
 import { createClient } from '@supabase/supabase-js';
-import { randomUUID } from 'crypto';
 
 const supabaseUrl = process.env.APP_SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const supabaseKey =
@@ -92,6 +91,44 @@ export default async (req, res) => {
       return res.status(400).json({ success: false, message: 'Invalid phone number format. Use 07XXXXXXXX or 254XXXXXXXXX' });
     }
 
+    const safeUserId = isUuid(userId) ? userId : null;
+    const guestUserId = isUuid(process.env.GUEST_USER_ID) ? process.env.GUEST_USER_ID : null;
+    const bookingUserId = safeUserId || guestUserId;
+    const bookingRequired = purpose === 'interview_booking' || interviewCompany || interviewPosition || interviewType || interviewAt;
+
+    if (bookingRequired) {
+      if (!bookingUserId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Interview booking requires a user. Provide a valid UUID userId or set GUEST_USER_ID in the environment to an existing users.id.'
+        });
+      }
+
+      try {
+        const appSupabasePrecheck = getApplicationsSupabaseClient();
+        const { data: existingUser, error: userLookupError } = await appSupabasePrecheck
+          .from('users')
+          .select('id')
+          .eq('id', bookingUserId)
+          .maybeSingle();
+
+        if (userLookupError) {
+          console.error('Failed to validate booking user_id:', userLookupError);
+          return res.status(500).json({ success: false, message: 'Failed to validate booking user' });
+        }
+
+        if (!existingUser?.id) {
+          return res.status(400).json({
+            success: false,
+            message: 'Interview booking requires a valid users.id. The provided userId/GUEST_USER_ID was not found in users table.'
+          });
+        }
+      } catch (e) {
+        console.error('Error validating booking user_id:', e);
+        return res.status(500).json({ success: false, message: 'Failed to validate booking user' });
+      }
+    }
+
     const externalReference = `CANADAADS-${Date.now()}`;
 
     const swiftpayPayload = {
@@ -131,8 +168,6 @@ export default async (req, res) => {
       
       try {
         const appSupabase = getApplicationsSupabaseClient();
-
-        const safeUserId = isUuid(userId) ? userId : null;
         let safeApplicationId = isUuid(applicationId) ? applicationId : null;
         let safeInterviewBookingId = isUuid(interviewBookingId) ? interviewBookingId : null;
 
@@ -143,7 +178,6 @@ export default async (req, res) => {
             console.error('interview_bookings insert error: interview_at is required for interview bookings');
           } else {
             try {
-              const bookingUserId = safeUserId || randomUUID();
               const { data: createdBooking, error: bookingInsertError } = await appSupabase
                 .from('interview_bookings')
                 .insert({
@@ -173,7 +207,7 @@ export default async (req, res) => {
 
         const inferredPurpose = purpose || (safeApplicationId ? 'application' : safeInterviewBookingId ? 'interview_booking' : 'unknown');
         console.log('Inserting payment attempt:', {
-          user_id: safeUserId,
+          user_id: bookingUserId,
           application_id: safeApplicationId,
           interview_booking_id: safeInterviewBookingId,
           purpose: inferredPurpose,
@@ -186,7 +220,7 @@ export default async (req, res) => {
         const { error: dbError } = await appSupabase
           .from('payment_attempts')
           .insert({
-            user_id: safeUserId,
+            user_id: bookingUserId,
             application_id: safeApplicationId,
             interview_booking_id: safeInterviewBookingId,
             purpose: inferredPurpose,
