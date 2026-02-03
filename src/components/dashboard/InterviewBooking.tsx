@@ -138,7 +138,7 @@ const InterviewBooking: React.FC<InterviewBookingProps> = ({
         },
         body: JSON.stringify({
           phoneNumber: `254${phoneNumber}`,
-          amount: 10, // Updated amount
+          amount: 250, // Updated amount
           description: 'Account Verification Fee',
           purpose: 'interview_booking',
           userId: userId || null,
